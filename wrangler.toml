@@ -1,0 +1,14 @@
+name = "claude-code-media"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "claude-code-media-db"
+database_id = "placeholder-run-wrangler-d1-create"
+
+[vars]
+ADMIN_PASSWORD_HASH = "change-me-in-cloudflare-dashboard"
+
+[[triggers]]
+crons = ["0 * * * *"]  # 毎時RSS取得

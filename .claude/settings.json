@@ -1,0 +1,20 @@
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev)",
+      "Bash(npm run build)",
+      "Bash(npm run start)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(npx wrangler *)",
+      "Read",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Read(.env*)"
+    ]
+  }
+}
