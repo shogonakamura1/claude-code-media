@@ -17,6 +17,7 @@ export interface RawItem {
   description: string;
   publishedAt: string;
   source: string;
+  engagement?: number; // HN points, Reddit ups, etc.
 }
 
 export interface ScoredItem extends RawItem {
