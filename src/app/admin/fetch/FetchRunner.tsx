@@ -26,13 +26,21 @@ export function FetchRunner() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<CronResult | null>(null);
   const [error, setError] = useState("");
+  const [token, setToken] = useState("");
 
   async function handleFetch() {
+    if (!token.trim()) {
+      setError("シークレットトークンを入力してください");
+      return;
+    }
     setRunning(true);
     setError("");
     setResult(null);
     try {
-      const res = await fetch("/api/cron", { method: "POST" });
+      const res = await fetch("/api/cron", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token.trim()}` },
+      });
       const data = (await res.json()) as CronResult;
       if (!data.ok) throw new Error(data.error ?? "Unknown error");
       setResult(data);
@@ -45,20 +53,29 @@ export function FetchRunner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button
-          onClick={handleFetch}
-          disabled={running}
-          className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
-        >
-          {running ? "フェッチ中..." : "今すぐフェッチ実行"}
-        </button>
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="CRON_SECRET トークン"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+          />
+          <button
+            onClick={handleFetch}
+            disabled={running || !token.trim()}
+            className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+          >
+            {running ? "フェッチ中..." : "今すぐフェッチ実行"}
+          </button>
+        </div>
         {result && (
-          <span className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             保存 <span className="font-semibold text-emerald-500">{result.saved}</span>件
             {" / "}スキップ {result.skipped}件
             {" / "}フィルタ除外 {result.filtered}件
-          </span>
+          </p>
         )}
       </div>
 
