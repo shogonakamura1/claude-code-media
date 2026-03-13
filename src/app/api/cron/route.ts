@@ -1,4 +1,5 @@
 import { fetchAll } from "@/lib/fetchers";
+import { AUTO_PUBLISH_MIN } from "@/lib/fetchers/scorer";
 import { summarizeArticle, sleep } from "@/lib/gemini";
 import type { GeminiSummaryResult } from "@/lib/gemini";
 import { getDb } from "@/lib/db";
@@ -7,9 +8,6 @@ import { eq } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 
 export const runtime = "edge";
-
-/** 2025-02-01以降の記事のみ保存（score >= 8は例外） */
-const DATE_CUTOFF = "2025-02-01T00:00:00Z";
 
 const CONTENT_TYPE_TO_CATEGORY: Record<string, string> = {
   news: "cat_news",
@@ -30,10 +28,13 @@ function generateId(): string {
   return `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function isAfterCutoff(dateStr: string | undefined, score: number): boolean {
-  if (score >= 8) return true;
-  if (!dateStr) return false;
-  return dateStr >= DATE_CUTOFF;
+/**
+ * スコアに基づくstatus振り分け
+ * - AUTO_PUBLISH_MIN以上 → PUBLISHED（自動公開）
+ * - それ未満（REVIEW_MIN以上で通過済み） → PENDING（オーナーレビュー待ち）
+ */
+function determineStatus(score: number): "PUBLISHED" | "PENDING" {
+  return score >= AUTO_PUBLISH_MIN ? "PUBLISHED" : "PENDING";
 }
 
 interface CronEnv {
@@ -69,7 +70,8 @@ export async function POST(request: Request) {
     let saved = 0;
     let skipped = 0;
     let summarized = 0;
-    let filtered = 0;
+    let published = 0;
+    let pending = 0;
     const savedIds: string[] = [];
     const errors: string[] = [];
 
@@ -81,12 +83,6 @@ export async function POST(request: Request) {
 
         for (const item of batch) {
           try {
-            // 日付フィルタ（score >= 8は例外）
-            if (!isAfterCutoff(item.publishedAt, item.score)) {
-              filtered++;
-              continue;
-            }
-
             // 重複チェック
             const existing = await db
               .select({ id: articles.id })
@@ -133,6 +129,8 @@ export async function POST(request: Request) {
               ? CONTENT_TYPE_TO_CATEGORY[geminiData.contentType] ?? null
               : null;
 
+            const articleStatus = determineStatus(item.score);
+
             await db.insert(articles).values({
               id,
               slug,
@@ -141,7 +139,7 @@ export async function POST(request: Request) {
               originalUrl: item.url,
               source: item.source,
               categoryId,
-              status: "PENDING",
+              status: articleStatus,
               score: item.score,
               aiSummary: geminiData?.summary ?? null,
               difficulty: geminiData?.difficulty ?? null,
@@ -152,6 +150,8 @@ export async function POST(request: Request) {
               publishedAt: item.publishedAt,
             });
 
+            if (articleStatus === "PUBLISHED") published++;
+            else pending++;
             saved++;
             savedIds.push(id);
           } catch (itemErr) {
@@ -179,7 +179,8 @@ export async function POST(request: Request) {
       saved,
       savedIds,
       skipped,
-      filtered,
+      published,
+      pending,
       summarized,
       errors: errors.length > 0 ? errors : undefined,
     });

@@ -1,10 +1,16 @@
 export const runtime = "edge";
 export const revalidate = 300;
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { ArticleCard } from "@/components/ArticleCard";
+import { InFeedAd, DisplayAd } from "@/components/AdUnit";
+import { WebSiteJsonLd, ArticleListJsonLd } from "@/components/JsonLd";
+import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants";
 import type { ArticleWithRelations } from "@/lib/db/schema";
+
+const AD_INTERVAL = 2;
 
 const CATEGORIES = [
   { slug: "all", name: "すべて" },
@@ -15,6 +21,39 @@ const CATEGORIES = [
 ];
 
 const PAGE_SIZE = 20;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  news: "ニュース",
+  tips: "Tips",
+  tutorial: "チュートリアル",
+  "case-study": "事例・ハック",
+};
+
+export async function generateMetadata({
+  searchParams,
+}: HomeProps): Promise<Metadata> {
+  const params = await searchParams;
+  const category = params.category;
+
+  if (category && CATEGORY_LABELS[category]) {
+    const label = CATEGORY_LABELS[category];
+    return {
+      title: `${label}の記事一覧`,
+      description: `${SITE_NAME}の${label}カテゴリの記事一覧。Claude Code・AI開発ツールの${label}を日本語で紹介。`,
+      alternates: {
+        canonical: `/?category=${category}`,
+      },
+    };
+  }
+
+  return {
+    title: `${SITE_NAME} - Claude Code / AI開発の最新情報`,
+    description: SITE_DESCRIPTION,
+    alternates: {
+      canonical: "/",
+    },
+  };
+}
 
 interface HomeProps {
   searchParams: Promise<{ category?: string; page?: string }>;
@@ -116,6 +155,9 @@ export default async function HomePage({ searchParams }: HomeProps) {
 
   return (
     <div className="space-y-8">
+      <WebSiteJsonLd />
+      <ArticleListJsonLd articles={articles} />
+
       {/* Page title */}
       <section className="pt-6">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
@@ -157,20 +199,27 @@ export default async function HomePage({ searchParams }: HomeProps) {
         </p>
       ) : (
         <div className="space-y-8">
-          {dateGroups.map((group) => (
-            <section key={group.date}>
-              <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium text-muted-foreground">
-                {group.label}
-              </h2>
-              <div className="space-y-4">
-                {group.articles.map((article) => (
-                  <ArticleCard key={article.id} article={article} />
-                ))}
-              </div>
-            </section>
+          {dateGroups.map((group, index) => (
+            <div key={group.date}>
+              <section>
+                <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium text-muted-foreground">
+                  {group.label}
+                </h2>
+                <div className="space-y-4">
+                  {group.articles.map((article) => (
+                    <ArticleCard key={article.id} article={article} />
+                  ))}
+                </div>
+              </section>
+              {(index + 1) % AD_INTERVAL === 0 &&
+                index < dateGroups.length - 1 && <InFeedAd />}
+            </div>
           ))}
         </div>
       )}
+
+      {/* Display Ad above pagination */}
+      {articles.length > 0 && <DisplayAd />}
 
       {/* Pagination */}
       {totalCount > 0 && (
