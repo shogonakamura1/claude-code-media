@@ -10,10 +10,10 @@ interface Props {
 
 export function ArticleActions({ articleId, status }: Props) {
   const router = useRouter();
-  const [loading, setLoading] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   async function updateStatus(newStatus: string) {
-    setLoading(newStatus);
+    setLoading(true);
     try {
       const res = await fetch(`/api/articles/${articleId}`, {
         method: "PATCH",
@@ -24,30 +24,33 @@ export function ArticleActions({ articleId, status }: Props) {
         router.refresh();
       }
     } finally {
-      setLoading(null);
+      setLoading(false);
     }
   }
 
-  if (status !== "PENDING" && status !== "DRAFT") {
-    return null;
-  }
-
-  return (
-    <div className="flex gap-1.5">
+  if (status === "PENDING" || status === "DRAFT") {
+    return (
       <button
         onClick={() => updateStatus("PUBLISHED")}
-        disabled={loading !== null}
-        className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+        disabled={loading}
+        className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
       >
-        {loading === "PUBLISHED" ? "..." : "公開"}
+        {loading ? "..." : "公開"}
       </button>
+    );
+  }
+
+  if (status === "PUBLISHED") {
+    return (
       <button
-        onClick={() => updateStatus("REJECTED")}
-        disabled={loading !== null}
-        className="rounded bg-red-600/10 px-2.5 py-1 text-xs font-medium text-red-500 transition-colors hover:bg-red-600/20 disabled:opacity-50"
+        onClick={() => updateStatus("PENDING")}
+        disabled={loading}
+        className="rounded bg-zinc-600/10 px-3 py-1.5 text-xs font-medium text-zinc-500 transition-colors hover:bg-zinc-600/20 disabled:opacity-50"
       >
-        {loading === "REJECTED" ? "..." : "却下"}
+        {loading ? "..." : "非公開"}
       </button>
-    </div>
-  );
+    );
+  }
+
+  return null;
 }
