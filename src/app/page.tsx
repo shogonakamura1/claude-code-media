@@ -1,12 +1,9 @@
 export const runtime = "edge";
+export const revalidate = 300;
 
 import Link from "next/link";
+import { headers } from "next/headers";
 import { ArticleCard } from "@/components/ArticleCard";
-import { FeatureHub } from "@/components/FeatureHub";
-import { TabNavigation } from "@/components/TabNavigation";
-import { WeeklyHighlights } from "@/components/WeeklyHighlights";
-import { fetchLiveArticles } from "@/lib/fetch-live-articles";
-import { MOCK_FEATURES } from "@/lib/mock-data";
 import type { ArticleWithRelations } from "@/lib/db/schema";
 
 const CATEGORIES = [
@@ -17,209 +14,190 @@ const CATEGORIES = [
   { slug: "case-study", name: "事例・ハック" },
 ];
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 interface HomeProps {
-  searchParams: Promise<{ tab?: string; category?: string; feature?: string; page?: string }>;
+  searchParams: Promise<{ category?: string; page?: string }>;
 }
 
-function filterArticlesByTab(
-  articles: ArticleWithRelations[],
-  tab: string
-): ArticleWithRelations[] {
-  switch (tab) {
-    case "beginner":
-      return articles.filter(
-        (a) =>
-          a.difficulty === "beginner" ||
-          a.category?.slug === "tutorial"
-      );
-    case "featured":
-      return [...articles].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-    case "practical":
-      return articles.filter(
-        (a) =>
-          a.category?.slug === "tips" || a.category?.slug === "case-study"
-      );
-    case "latest":
-    default:
-      return [...articles].sort(
-        (a, b) =>
-          new Date(b.publishedAt ?? 0).getTime() -
-          new Date(a.publishedAt ?? 0).getTime()
-      );
+interface ArticlesApiResponse {
+  ok: boolean;
+  articles: ArticleWithRelations[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+function formatDateSeparator(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("ja-JP", {
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+}
+
+function groupArticlesByDate(
+  articles: ArticleWithRelations[]
+): { date: string; label: string; articles: ArticleWithRelations[] }[] {
+  const groups: Map<string, ArticleWithRelations[]> = new Map();
+
+  for (const article of articles) {
+    const dateKey = article.publishedAt
+      ? new Date(article.publishedAt).toISOString().split("T")[0]
+      : "unknown";
+    const existing = groups.get(dateKey);
+    if (existing) {
+      existing.push(article);
+    } else {
+      groups.set(dateKey, [article]);
+    }
   }
-}
 
-function buildQueryString(params: Record<string, string>): string {
-  const qs = new URLSearchParams(params).toString();
-  return qs ? `/?${qs}` : "/";
+  return Array.from(groups.entries()).map(([dateKey, items]) => ({
+    date: dateKey,
+    label: dateKey === "unknown" ? "日付不明" : formatDateSeparator(dateKey),
+    articles: items,
+  }));
 }
 
 export default async function HomePage({ searchParams }: HomeProps) {
   const params = await searchParams;
-  const activeTab = params.tab ?? "latest";
   const activeCategory = params.category ?? "all";
-  const activeFeature = params.feature ?? "all";
   const currentPage = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
 
-  // Fetch all articles (backend handles Gemini enrichment internally)
-  const result = await fetchLiveArticles(currentPage, PAGE_SIZE);
-  const allArticles = result.articles;
+  // Fetch articles from internal API
+  let data: ArticlesApiResponse = {
+    ok: false,
+    articles: [],
+    totalCount: 0,
+    totalPages: 0,
+    currentPage: 1,
+  };
 
-  // Weekly highlights: top 3 by score
-  const highlights = [...allArticles]
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    .slice(0, 3);
+  try {
+    const headersList = await headers();
+    const host = headersList.get("host") ?? "localhost:3000";
+    const protocol = host.startsWith("localhost") ? "http" : "https";
+    const baseUrl = `${protocol}://${host}`;
 
-  // Filter by tab first, then by category/feature
-  const tabFiltered = filterArticlesByTab(allArticles, activeTab);
+    const apiUrl = new URL("/api/articles", baseUrl);
+    apiUrl.searchParams.set("page", String(currentPage));
+    apiUrl.searchParams.set("limit", String(PAGE_SIZE));
+    if (activeCategory !== "all") {
+      apiUrl.searchParams.set("category", activeCategory);
+    }
 
-  const filtered = tabFiltered.filter((a) => {
-    const categoryMatch =
-      activeCategory === "all" || a.category?.slug === activeCategory;
-    const featureMatch =
-      activeFeature === "all" ||
-      a.features.some((f) => f.slug === activeFeature);
-    return categoryMatch && featureMatch;
-  });
+    const res = await fetch(apiUrl.toString(), { next: { revalidate: 300 } });
+    if (res.ok) {
+      data = await res.json();
+    }
+  } catch {
+    // Fallback to empty on fetch failure (dev environment, etc.)
+  }
 
-  // Pagination (client-side filtering on paginated data)
-  const totalCount = result.totalCount;
-  const totalPages = result.totalPages;
-  const articles = filtered;
-
-  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const { articles, totalCount, totalPages } = data;
+  const start = totalCount > 0 ? (currentPage - 1) * PAGE_SIZE + 1 : 0;
   const end = Math.min(currentPage * PAGE_SIZE, totalCount);
 
-  // Build search params for link generation
-  const baseParams: Record<string, string> = {};
-  if (activeTab !== "latest") baseParams.tab = activeTab;
-  if (activeCategory !== "all") baseParams.category = activeCategory;
-  if (activeFeature !== "all") baseParams.feature = activeFeature;
+  // Group articles by date
+  const dateGroups = groupArticlesByDate(articles);
 
-  const prevUrl = buildQueryString({ ...baseParams, page: String(currentPage - 1) });
-  const nextUrl = buildQueryString({ ...baseParams, page: String(currentPage + 1) });
+  // Build query params for pagination links
+  const baseParams: Record<string, string> = {};
+  if (activeCategory !== "all") baseParams.category = activeCategory;
+
+  function buildUrl(page: number): string {
+    const qs = new URLSearchParams({
+      ...baseParams,
+      ...(page > 1 ? { page: String(page) } : {}),
+    }).toString();
+    return qs ? `/?${qs}` : "/";
+  }
 
   return (
-    <div className="space-y-12">
-      {/* ① Hero */}
-      <section className="py-10 text-center">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          AIツールの最新情報を、
-          <span className="text-primary">あなたのペースで</span>
+    <div className="space-y-8">
+      {/* Page title */}
+      <section className="pt-6">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
+          ClaudeNote
+          <span className="ml-2 text-base font-normal text-muted-foreground">
+            — Claude Code の最新情報
+          </span>
         </h1>
-        <p className="mt-3 text-muted-foreground">
-          Claude Code の公式ニュース・Tips・チュートリアルを引用元明示 +
-          AI要約付きでキュレーション
+      </section>
+
+      {/* Category filter */}
+      <div className="flex flex-wrap gap-2">
+        {CATEGORIES.map((cat) => {
+          const qs =
+            cat.slug === "all"
+              ? ""
+              : new URLSearchParams({ category: cat.slug }).toString();
+
+          return (
+            <Link
+              key={cat.slug}
+              href={qs ? `/?${qs}` : "/"}
+              className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
+                activeCategory === cat.slug
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
+              }`}
+            >
+              {cat.name}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Article feed with date separators */}
+      {articles.length === 0 ? (
+        <p className="py-12 text-center text-muted-foreground">
+          該当する記事はありません
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3">
-          <Link
-            href="/?tab=beginner"
-            className="inline-flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-600 transition-colors hover:bg-green-500/20 dark:text-green-400"
-          >
-            🔰 まずはここから
-          </Link>
-          <Link
-            href="/?tab=featured"
-            className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
-          >
-            📰 今週のまとめ
-          </Link>
-          <Link
-            href="/?tab=latest"
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
-          >
-            🔍 全記事
-          </Link>
+      ) : (
+        <div className="space-y-8">
+          {dateGroups.map((group) => (
+            <section key={group.date}>
+              <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium text-muted-foreground">
+                {group.label}
+              </h2>
+              <div className="space-y-4">
+                {group.articles.map((article) => (
+                  <ArticleCard key={article.id} article={article} />
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
-      </section>
+      )}
 
-      {/* ② Weekly Highlights */}
-      <section>
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          今週のハイライト
-        </h2>
-        <WeeklyHighlights articles={highlights} />
-      </section>
-
-      {/* ③ Tab + Filter + Articles */}
-      <section>
-        <TabNavigation activeTab={activeTab} searchParams={baseParams} />
-
-        {/* Category Filter */}
-        <div className="mt-4 mb-6 flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => {
-            const catParams = new URLSearchParams();
-            if (activeTab !== "latest") catParams.set("tab", activeTab);
-            if (cat.slug !== "all") catParams.set("category", cat.slug);
-            if (activeFeature !== "all") catParams.set("feature", activeFeature);
-            const qs = catParams.toString();
-
-            return (
+      {/* Pagination */}
+      {totalCount > 0 && (
+        <div className="flex items-center justify-between pb-8">
+          <span className="text-sm text-muted-foreground">
+            全{totalCount}件中 {start}-{end}件を表示
+          </span>
+          <div className="flex gap-2">
+            {currentPage > 1 && (
               <Link
-                key={cat.slug}
-                href={qs ? `/?${qs}` : "/"}
-                className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
-                  activeCategory === cat.slug
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
-                }`}
+                href={buildUrl(currentPage - 1)}
+                className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
               >
-                {cat.name}
+                ← 前へ
               </Link>
-            );
-          })}
+            )}
+            {currentPage < totalPages && (
+              <Link
+                href={buildUrl(currentPage + 1)}
+                className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
+              >
+                次へ →
+              </Link>
+            )}
+          </div>
         </div>
-
-        {/* Article list */}
-        {articles.length === 0 ? (
-          <p className="py-12 text-center text-muted-foreground">
-            該当する記事はありません
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {articles.map((article) => (
-              <ArticleCard key={article.id} article={article} />
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalCount > 0 && (
-          <div className="mt-8 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              全{totalCount}件中 {start}-{end}件を表示
-            </span>
-            <div className="flex gap-2">
-              {currentPage > 1 && (
-                <Link
-                  href={prevUrl}
-                  className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
-                >
-                  ← 前へ
-                </Link>
-              )}
-              {currentPage < totalPages && (
-                <Link
-                  href={nextUrl}
-                  className="inline-flex items-center rounded-md border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted"
-                >
-                  次へ →
-                </Link>
-              )}
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* ④ Feature Hub */}
-      <section id="features">
-        <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-          機能で探す
-        </h2>
-        <FeatureHub features={MOCK_FEATURES} activeSlug={activeFeature} />
-      </section>
+      )}
     </div>
   );
 }

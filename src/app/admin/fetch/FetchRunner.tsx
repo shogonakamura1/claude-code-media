@@ -1,42 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import type { FetchResult } from "@/lib/fetchers";
-import type { ScoredItem } from "@/lib/fetchers/types";
+
+interface SourceSummary {
+  source: string;
+  fetched: number;
+  scored: number;
+  error?: string;
+}
+
+interface CronResult {
+  ok: boolean;
+  error?: string;
+  summary: SourceSummary[];
+  total: number;
+  saved: number;
+  savedIds: string[];
+  skipped: number;
+  filtered: number;
+  summarized: number;
+  errors?: string[];
+}
 
 export function FetchRunner() {
   const [running, setRunning] = useState(false);
-  const [results, setResults] = useState<FetchResult[] | null>(null);
+  const [result, setResult] = useState<CronResult | null>(null);
   const [error, setError] = useState("");
 
   async function handleFetch() {
     setRunning(true);
     setError("");
-    setResults(null);
+    setResult(null);
     try {
-      const res = await fetch("/api/cron");
-      const data = await res.json() as {
-        ok: boolean;
-        error?: string;
-        summary: { source: string; fetched: number; scored: number; error?: string }[];
-        articles: ScoredItem[];
-      };
+      const res = await fetch("/api/cron", { method: "POST" });
+      const data = (await res.json()) as CronResult;
       if (!data.ok) throw new Error(data.error ?? "Unknown error");
-      setResults(data.summary.map((s, i) => ({
-        sourceId: String(i),
-        label: s.source,
-        fetched: s.fetched,
-        scored: data.articles.filter((a) => a.source === s.source),
-        error: s.error,
-      })));
+      setResult(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunning(false);
     }
   }
-
-  const totalScored = results?.reduce((s, r) => s + r.scored.length, 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -48,9 +53,11 @@ export function FetchRunner() {
         >
           {running ? "フェッチ中..." : "今すぐフェッチ実行"}
         </button>
-        {results && (
+        {result && (
           <span className="text-sm text-muted-foreground">
-            合計 <span className="font-semibold text-foreground">{totalScored}</span> 件スコア通過
+            保存 <span className="font-semibold text-emerald-500">{result.saved}</span>件
+            {" / "}スキップ {result.skipped}件
+            {" / "}フィルタ除外 {result.filtered}件
           </span>
         )}
       </div>
@@ -61,7 +68,7 @@ export function FetchRunner() {
         </p>
       )}
 
-      {results && (
+      {result && (
         <>
           {/* ソース別サマリー */}
           <div className="overflow-hidden rounded-lg border border-border">
@@ -75,80 +82,55 @@ export function FetchRunner() {
                 </tr>
               </thead>
               <tbody>
-                {results.map((r) => (
-                  <tr key={r.sourceId} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2">{r.label}</td>
-                    <td className="px-4 py-2 text-right text-muted-foreground">{r.fetched}</td>
+                {result.summary.map((s, i) => (
+                  <tr key={i} className="border-b border-border last:border-0">
+                    <td className="px-4 py-2">{s.source}</td>
+                    <td className="px-4 py-2 text-right text-muted-foreground">{s.fetched}</td>
                     <td className="px-4 py-2 text-right">
                       <span
                         className={
-                          r.scored.length > 0 ? "font-semibold text-emerald-500" : "text-muted-foreground"
+                          s.scored > 0 ? "font-semibold text-emerald-500" : "text-muted-foreground"
                         }
                       >
-                        {r.scored.length}
+                        {s.scored}
                       </span>
                     </td>
-                    <td className="px-4 py-2 text-xs text-red-400">{r.error ?? ""}</td>
+                    <td className="px-4 py-2 text-xs text-red-400">{s.error ?? ""}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* スコア通過記事一覧 */}
-          {totalScored > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-muted-foreground">
-                スコア通過記事 ({totalScored}件)
-              </h2>
-              <div className="space-y-2">
-                {results.flatMap((r) =>
-                  r.scored.map((item, idx) => (
-                    <div
-                      key={`${r.sourceId}-${idx}`}
-                      className="rounded-lg border border-border bg-card p-3"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium hover:text-primary"
-                        >
-                          {item.title}
-                        </a>
-                        <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
-                            item.score >= 15
-                              ? "bg-orange-500/20 text-orange-500"
-                              : item.score >= 8
-                              ? "bg-blue-500/20 text-blue-500"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {item.score}pt
-                        </span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        <span className="text-xs text-muted-foreground">{item.source}</span>
-                        {item.matchedKeywords.map((kw) => (
-                          <span
-                            key={kw}
-                            className="rounded bg-primary/10 px-1.5 py-0.5 text-xs text-primary"
-                          >
-                            {kw}
-                          </span>
-                        ))}
-                      </div>
-                      {item.description && (
-                        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                          {item.description}
-                        </p>
-                      )}
-                    </div>
-                  ))
-                )}
+          {/* DB保存結果 */}
+          <div className="rounded-lg border border-border bg-card p-4 text-sm">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div>
+                <span className="text-muted-foreground">総スコア通過</span>
+                <p className="text-lg font-semibold">{result.total}</p>
               </div>
+              <div>
+                <span className="text-muted-foreground">DB保存</span>
+                <p className="text-lg font-semibold text-emerald-500">{result.saved}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">要約生成</span>
+                <p className="text-lg font-semibold">{result.summarized}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">重複スキップ</span>
+                <p className="text-lg font-semibold text-muted-foreground">{result.skipped}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* エラー一覧 */}
+          {result.errors && result.errors.length > 0 && (
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-red-500">エラー ({result.errors.length}件)</h3>
+              {result.errors.map((err, i) => (
+                <p key={i} className="text-xs text-red-400">{err}</p>
+              ))}
             </div>
           )}
         </>

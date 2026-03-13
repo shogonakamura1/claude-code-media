@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { NewArticleForm } from "./NewArticleForm";
-import { MOCK_FEATURES } from "@/lib/mock-data";
 
 export default function NewArticlePage() {
   return (
@@ -20,7 +19,7 @@ export default function NewArticlePage() {
 
       <h1 className="text-xl font-bold">記事を手動追加</h1>
 
-      <NewArticleForm features={MOCK_FEATURES} />
+      <NewArticleForm features={[]} />
     </div>
   );
 }

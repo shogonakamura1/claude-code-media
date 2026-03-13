@@ -2,9 +2,18 @@ export const runtime = "edge";
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { headers } from "next/headers";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { MOCK_ARTICLES, MOCK_FEATURES } from "@/lib/mock-data";
+import type { ArticleWithRelations } from "@/lib/db/schema";
 import { AdminArticleForm } from "./AdminArticleForm";
+
+interface ArticlesApiResponse {
+  ok: boolean;
+  articles: ArticleWithRelations[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -12,7 +21,29 @@ interface Props {
 
 export default async function AdminArticleEditPage({ params }: Props) {
   const { id } = await params;
-  const article = MOCK_ARTICLES.find((a) => a.id === id);
+
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") ? "http" : "https";
+  const baseUrl = `${protocol}://${host}`;
+
+  let article: ArticleWithRelations | undefined;
+  const statuses = ["PENDING", "DRAFT", "PUBLISHED", "REJECTED"];
+  for (const status of statuses) {
+    try {
+      const url = new URL("/api/articles", baseUrl);
+      url.searchParams.set("status", status);
+      url.searchParams.set("limit", "50");
+      const res = await fetch(url.toString(), { cache: "no-store" });
+      if (res.ok) {
+        const data: ArticlesApiResponse = await res.json();
+        article = data.articles.find((a) => a.id === id);
+        if (article) break;
+      }
+    } catch {
+      // continue to next status
+    }
+  }
 
   if (!article) notFound();
 
@@ -53,7 +84,7 @@ export default async function AdminArticleEditPage({ params }: Props) {
       </div>
 
       {/* Edit form */}
-      <AdminArticleForm article={article} features={MOCK_FEATURES} />
+      <AdminArticleForm article={article} features={[]} />
     </div>
   );
 }

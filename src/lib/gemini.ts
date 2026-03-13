@@ -55,7 +55,6 @@ export async function summarizeArticle(
 URL: ${url}`;
 
   const endpoint = `${GEMINI_ENDPOINT}?key=${key}`;
-  console.log(`[Gemini] Calling model: ${GEMINI_MODEL}`);
   const res = await fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

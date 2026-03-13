@@ -1,5 +1,8 @@
+export const runtime = "edge";
+
 import Link from "next/link";
-import { MOCK_ARTICLES } from "@/lib/mock-data";
+import { headers } from "next/headers";
+import type { ArticleWithRelations } from "@/lib/db/schema";
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "text-yellow-500 bg-yellow-500/10",
@@ -8,17 +11,58 @@ const STATUS_COLORS: Record<string, string> = {
   REJECTED: "text-red-500 bg-red-500/10",
 };
 
-export default function AdminDashboard() {
-  const articles = MOCK_ARTICLES;
+interface ArticlesApiResponse {
+  ok: boolean;
+  articles: ArticleWithRelations[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
+
+async function fetchArticles(
+  baseUrl: string,
+  status: string
+): Promise<ArticlesApiResponse> {
+  try {
+    const url = new URL("/api/articles", baseUrl);
+    url.searchParams.set("status", status);
+    url.searchParams.set("limit", "50");
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (res.ok) return res.json();
+  } catch {
+    // fallback
+  }
+  return { ok: false, articles: [], totalCount: 0, totalPages: 0, currentPage: 1 };
+}
+
+export default async function AdminDashboard() {
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") ? "http" : "https";
+  const baseUrl = `${protocol}://${host}`;
+
+  const [pending, draft, published, rejected] = await Promise.all([
+    fetchArticles(baseUrl, "PENDING"),
+    fetchArticles(baseUrl, "DRAFT"),
+    fetchArticles(baseUrl, "PUBLISHED"),
+    fetchArticles(baseUrl, "REJECTED"),
+  ]);
+
   const counts = {
-    PENDING: articles.filter((a) => a.status === "PENDING").length,
-    DRAFT: articles.filter((a) => a.status === "DRAFT").length,
-    PUBLISHED: articles.filter((a) => a.status === "PUBLISHED").length,
-    REJECTED: articles.filter((a) => a.status === "REJECTED").length,
+    PENDING: pending.totalCount,
+    DRAFT: draft.totalCount,
+    PUBLISHED: published.totalCount,
+    REJECTED: rejected.totalCount,
   };
 
-  const pending = articles.filter((a) => a.status === "PENDING");
-  const recent = [...articles]
+  const pendingArticles = pending.articles;
+  const allArticles = [
+    ...pending.articles,
+    ...draft.articles,
+    ...published.articles,
+    ...rejected.articles,
+  ];
+  const recent = allArticles
     .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
     .slice(0, 5);
 
@@ -44,13 +88,13 @@ export default function AdminDashboard() {
       </div>
 
       {/* PENDING review queue */}
-      {pending.length > 0 && (
+      {pendingArticles.length > 0 && (
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-500">
-            承認待ち ({pending.length})
+            承認待ち ({pendingArticles.length})
           </h2>
           <div className="space-y-2">
-            {pending.map((a) => (
+            {pendingArticles.map((a) => (
               <Link
                 key={a.id}
                 href={`/admin/articles/${a.id}`}

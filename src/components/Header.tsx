@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 const NAV_ITEMS = [
   { label: "ニュース", href: "/?category=news" },
   { label: "Tips", href: "/?category=tips" },
-  { label: "機能で探す", href: "/#features" },
 ];
 
 export function Header() {
