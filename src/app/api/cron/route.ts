@@ -8,6 +8,16 @@ import { getRequestContext } from "@cloudflare/next-on-pages";
 
 export const runtime = "edge";
 
+/** 2025-02-01以降の記事のみ保存（score >= 8は例外） */
+const DATE_CUTOFF = "2025-02-01T00:00:00Z";
+
+const CONTENT_TYPE_TO_CATEGORY: Record<string, string> = {
+  news: "cat_news",
+  tips: "cat_tips",
+  tutorial: "cat_tutorial",
+  "case-study": "cat_case",
+};
+
 function generateSlug(title: string): string {
   return title
     .toLowerCase()
@@ -20,20 +30,24 @@ function generateId(): string {
   return `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function isAfterCutoff(dateStr: string | undefined, score: number): boolean {
+  if (score >= 8) return true;
+  if (!dateStr) return false;
+  return dateStr >= DATE_CUTOFF;
+}
+
 interface CronEnv {
   DB: D1Database;
   CRON_SECRET?: string;
   GEMINI_API_KEY?: string;
 }
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const envVars = getRequestContext().env as CronEnv;
 
-  // 簡易認証: ?secret=xxx または Authorization: Bearer xxx
-  const url = new URL(request.url);
-  const secret = url.searchParams.get("secret");
+  // 認証: Authorization: Bearer xxx またはbody内secret
   const authHeader = request.headers.get("Authorization");
-  const token = authHeader?.replace("Bearer ", "") ?? secret ?? "";
+  const token = authHeader?.replace("Bearer ", "") ?? "";
 
   const cronSecret = envVars.CRON_SECRET;
   if (cronSecret && token !== cronSecret) {
@@ -52,21 +66,27 @@ export async function GET(request: Request) {
 
     const allScored = results.flatMap((r) => r.scored);
 
-    // D1に保存（環境変数がある場合のみ）
     let saved = 0;
     let skipped = 0;
     let summarized = 0;
+    let filtered = 0;
+    const savedIds: string[] = [];
     const errors: string[] = [];
 
     try {
       const db = getDb({ DB: envVars.DB, ADMIN_PASSWORD_HASH: "" });
 
-      // 10件ずつバッチ処理
       for (let i = 0; i < allScored.length; i += 10) {
         const batch = allScored.slice(i, i + 10);
 
         for (const item of batch) {
           try {
+            // 日付フィルタ（score >= 8は例外）
+            if (!isAfterCutoff(item.publishedAt, item.score)) {
+              filtered++;
+              continue;
+            }
+
             // 重複チェック
             const existing = await db
               .select({ id: articles.id })
@@ -79,7 +99,7 @@ export async function GET(request: Request) {
               continue;
             }
 
-            // Gemini要約（失敗してもフォールバック）
+            // Gemini要約
             let geminiData: GeminiSummaryResult | null = null;
 
             try {
@@ -97,15 +117,30 @@ export async function GET(request: Request) {
             }
 
             const id = generateId();
-            const slug = generateSlug(item.title) || id;
+            const isEnglish = geminiData?.language === "en";
+
+            // 英語記事: title = titleJa, originalTitle = 原文
+            // 日本語記事: title = 原文, originalTitle = null
+            const titleJa = geminiData?.titleJa;
+            const articleTitle =
+              isEnglish && titleJa ? titleJa : item.title;
+            const originalTitle = isEnglish ? item.title : null;
+
+            const slug = generateSlug(articleTitle) || id;
+
+            // contentType → categoryIdマッピング
+            const categoryId = geminiData?.contentType
+              ? CONTENT_TYPE_TO_CATEGORY[geminiData.contentType] ?? null
+              : null;
 
             await db.insert(articles).values({
               id,
               slug,
-              title: item.title,
-              originalTitle: item.title,
+              title: articleTitle,
+              originalTitle,
               originalUrl: item.url,
               source: item.source,
+              categoryId,
               status: "PENDING",
               score: item.score,
               aiSummary: geminiData?.summary ?? null,
@@ -118,6 +153,7 @@ export async function GET(request: Request) {
             });
 
             saved++;
+            savedIds.push(id);
           } catch (itemErr) {
             errors.push(
               `Save error for "${item.title}": ${itemErr instanceof Error ? itemErr.message : String(itemErr)}`
@@ -131,7 +167,6 @@ export async function GET(request: Request) {
         }
       }
     } catch (dbErr) {
-      // D1未接続の場合はスキップ（開発環境用）
       errors.push(
         `DB connection error: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`
       );
@@ -142,7 +177,9 @@ export async function GET(request: Request) {
       summary,
       total: allScored.length,
       saved,
+      savedIds,
       skipped,
+      filtered,
       summarized,
       errors: errors.length > 0 ? errors : undefined,
     });

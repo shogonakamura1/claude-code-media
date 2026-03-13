@@ -5,10 +5,10 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "claude-code-media-db"
-database_id = "placeholder-run-wrangler-d1-create"
+database_id = "2cdb152c-370c-425f-9dee-49f1df840740"
 
 [vars]
 ADMIN_PASSWORD_HASH = "change-me-in-cloudflare-dashboard"
 
-[[triggers]]
+[triggers]
 crons = ["0 * * * *"]  # 毎時RSS取得

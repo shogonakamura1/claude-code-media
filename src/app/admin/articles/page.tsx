@@ -1,7 +1,8 @@
 export const runtime = "edge";
 
 import Link from "next/link";
-import { MOCK_ARTICLES } from "@/lib/mock-data";
+import { headers } from "next/headers";
+import type { ArticleWithRelations } from "@/lib/db/schema";
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "text-yellow-500 bg-yellow-500/10",
@@ -9,6 +10,14 @@ const STATUS_COLORS: Record<string, string> = {
   PUBLISHED: "text-emerald-500 bg-emerald-500/10",
   REJECTED: "text-red-500 bg-red-500/10",
 };
+
+interface ArticlesApiResponse {
+  ok: boolean;
+  articles: ArticleWithRelations[];
+  totalCount: number;
+  totalPages: number;
+  currentPage: number;
+}
 
 interface Props {
   searchParams: Promise<{ status?: string }>;
@@ -18,9 +27,26 @@ export default async function AdminArticleList({ searchParams }: Props) {
   const params = await searchParams;
   const filterStatus = params.status ?? "all";
 
-  const articles = MOCK_ARTICLES.filter(
-    (a) => filterStatus === "all" || a.status === filterStatus
-  );
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const protocol = host.startsWith("localhost") ? "http" : "https";
+  const baseUrl = `${protocol}://${host}`;
+
+  let articles: ArticleWithRelations[] = [];
+  try {
+    const url = new URL("/api/articles", baseUrl);
+    url.searchParams.set("limit", "50");
+    if (filterStatus !== "all") {
+      url.searchParams.set("status", filterStatus);
+    }
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (res.ok) {
+      const data: ArticlesApiResponse = await res.json();
+      articles = data.articles;
+    }
+  } catch {
+    // fallback to empty
+  }
 
   const STATUSES = ["all", "PENDING", "DRAFT", "PUBLISHED", "REJECTED"] as const;
 

@@ -1,7 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { SummaryToggle } from "@/components/SummaryToggle";
 import type { ArticleWithRelations } from "@/lib/db/schema";
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -94,20 +93,21 @@ export function ArticleCard({ article }: Props) {
               <span>{formatDate(article.publishedAt)}</span>
             </>
           )}
-          {article.features.map((f) => (
-            <span key={f.id} className="flex items-center gap-0.5">
-              <span>·</span>
-              <span>{f.icon} {f.name}</span>
-            </span>
-          ))}
+          {article.features.length > 0 &&
+            article.features.map((f) => (
+              <span key={f.id} className="flex items-center gap-0.5">
+                <span>·</span>
+                <span>{f.icon} {f.name}</span>
+              </span>
+            ))}
         </div>
 
-        {/* AI要約（オンデマンド生成） */}
-        <SummaryToggle
-          articleTitle={article.title}
-          articleDescription={article.comment ?? ""}
-          articleUrl={article.originalUrl}
-        />
+        {/* AI要約（DBから取得して常時表示） */}
+        {article.aiSummary && (
+          <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+            {article.aiSummary}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

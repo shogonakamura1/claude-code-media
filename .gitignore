@@ -4,6 +4,7 @@
 # testing
 /coverage
 /test-results
+/playwright-report
 
 # next.js
 /.next/
@@ -15,23 +16,28 @@
 # misc
 .DS_Store
 *.pem
+*.log
 
 # debug
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # env files
 .env*
 
-# vercel
-.vercel
-
 # cloudflare
 .wrangler
+.dev.vars
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# claude
-.claude
-CLAUDE.md
+# drizzle
+/drizzle/meta
+
+# claude - user-specific data only (project config is committed)
+.claude/projects/
+.claude/todos/
+.claude/memory/
