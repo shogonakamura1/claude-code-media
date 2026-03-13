@@ -97,6 +97,25 @@ export const articleTags = sqliteTable(
   (t) => [primaryKey({ columns: [t.articleId, t.tagId] })]
 );
 
+// ── RSSソース ────────────────────────────────────────────────────────────────
+export const sources = sqliteTable("sources", {
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  type: text("type", {
+    enum: ["rss", "atom", "hn-api", "reddit-api", "github-atom"],
+  }).notNull(),
+  priority: text("priority", {
+    enum: ["high", "medium", "low"],
+  }).notNull(),
+  label: text("label").notNull(),
+  authorType: text("author_type", {
+    enum: ["official", "influencer", "community", "media"],
+  }).notNull(),
+  isActive: integer("is_active").notNull().default(1),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
+});
+
 // ── 型エクスポート ─────────────────────────────────────────────────────────
 export type Category = typeof categories.$inferSelect;
 export type Feature = typeof features.$inferSelect;
@@ -105,6 +124,8 @@ export type Article = typeof articles.$inferSelect;
 export type ArticleStatus = "PENDING" | "DRAFT" | "PUBLISHED" | "REJECTED";
 export type Difficulty = "beginner" | "intermediate" | "advanced";
 export type ContentType = "news" | "tips" | "tutorial" | "case-study";
+
+export type SourceRow = typeof sources.$inferSelect;
 
 export type ArticleWithRelations = Article & {
   category: Category | null;
