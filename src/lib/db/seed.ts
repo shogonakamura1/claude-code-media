@@ -101,6 +101,7 @@ export const SEED_FEATURES = [
   },
   {
     id: "feat_worktrees",
+
     slug: "worktrees",
     name: "ワークツリー",
     nameEn: "Worktrees",
@@ -109,4 +110,21 @@ export const SEED_FEATURES = [
     docsUrl: "https://docs.anthropic.com/en/docs/claude-code/worktrees",
     order: 10,
   },
+];
+
+export const SEED_SOURCES = [
+  { id: "github-releases", url: "https://github.com/anthropics/claude-code/releases.atom", type: "github-atom", priority: "high", label: "GitHub Releases (claude-code)", authorType: "official" },
+  { id: "tomoam-zenn", url: "https://zenn.dev/tomoam/feed", type: "rss", priority: "high", label: "tomoam (Zenn)", authorType: "influencer" },
+  { id: "boris-tane", url: "https://boristane.com/rss.xml", type: "rss", priority: "medium", label: "Boris Tane", authorType: "influencer" },
+  { id: "simon-willison", url: "https://simonwillison.net/atom/everything/", type: "atom", priority: "high", label: "Simon Willison", authorType: "influencer" },
+  { id: "thorsten-ball", url: "https://registerspill.thorstenball.com/feed", type: "rss", priority: "medium", label: "Thorsten Ball (Register Spill)", authorType: "influencer" },
+  { id: "swyx-blog", url: "https://www.latent.space/feed", type: "rss", priority: "medium", label: "swyx (Latent Space)", authorType: "influencer" },
+  { id: "zenn", url: "https://zenn.dev/topics/claudecode/feed", type: "rss", priority: "medium", label: "Zenn", authorType: "community" },
+  { id: "qiita", url: "https://qiita.com/tags/claudecode/feed", type: "rss", priority: "medium", label: "Qiita", authorType: "community" },
+  { id: "devto", url: "https://dev.to/feed/tag/claudecode", type: "rss", priority: "low", label: "dev.to", authorType: "community" },
+  { id: "hn", url: "https://hn.algolia.com/api/v1/search?query=claude+code+anthropic&tags=story&hitsPerPage=20", type: "hn-api", priority: "medium", label: "Hacker News", authorType: "community" },
+  { id: "reddit", url: "https://www.reddit.com/r/ClaudeAI/search.json?q=claude+code&sort=new&limit=20&restrict_sr=1", type: "reddit-api", priority: "medium", label: "Reddit r/ClaudeAI", authorType: "community" },
+  { id: "note-claudecode", url: "https://note.com/hashtag/ClaudeCode?rss", type: "rss", priority: "medium", label: "note.com", authorType: "community" },
+  { id: "the-verge-ai", url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", type: "rss", priority: "low", label: "The Verge AI", authorType: "media" },
+  { id: "techcrunch-ai", url: "https://techcrunch.com/category/artificial-intelligence/feed/", type: "rss", priority: "low", label: "TechCrunch AI", authorType: "media" },
 ];

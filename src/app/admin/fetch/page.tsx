@@ -1,7 +1,32 @@
+import { getDb } from "@/lib/db";
+import { sources } from "@/lib/db/schema";
+import { eq, asc } from "drizzle-orm";
+import { getRequestContext } from "@cloudflare/next-on-pages";
 import { SOURCES } from "@/lib/fetchers";
 import { FetchRunner } from "./FetchRunner";
 
-export default function FetchPage() {
+export const runtime = "edge";
+
+async function getActiveSources() {
+  try {
+    const env = getRequestContext().env as { DB: D1Database };
+    const db = getDb({ DB: env.DB, ADMIN_PASSWORD_HASH: "" });
+    const rows = await db
+      .select()
+      .from(sources)
+      .where(eq(sources.isActive, 1))
+      .orderBy(asc(sources.label));
+
+    if (rows.length > 0) return rows;
+  } catch {
+    // DB未接続時はフォールバック
+  }
+  return SOURCES.map((s) => ({ ...s, isActive: 1, createdAt: "", updatedAt: "" }));
+}
+
+export default async function FetchPage() {
+  const activeSources = await getActiveSources();
+
   return (
     <div className="space-y-8">
       <div>
@@ -24,7 +49,7 @@ export default function FetchPage() {
               </tr>
             </thead>
             <tbody>
-              {SOURCES.map((s) => (
+              {activeSources.map((s) => (
                 <tr key={s.id} className="border-b border-border last:border-0">
                   <td className="px-4 py-2">
                     <a
