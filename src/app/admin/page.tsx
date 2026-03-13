@@ -5,20 +5,6 @@ import { headers } from "next/headers";
 import type { ArticleWithRelations } from "@/lib/db/schema";
 import { ArticleActions } from "./articles/ArticleActions";
 
-const STATUS_COLORS: Record<string, string> = {
-  PENDING: "text-yellow-500 bg-yellow-500/10",
-  DRAFT: "text-blue-500 bg-blue-500/10",
-  PUBLISHED: "text-emerald-500 bg-emerald-500/10",
-  REJECTED: "text-red-500 bg-red-500/10",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: "承認待ち",
-  DRAFT: "下書き",
-  PUBLISHED: "公開済",
-  REJECTED: "却下",
-};
-
 interface ArticlesApiResponse {
   ok: boolean;
   articles: ArticleWithRelations[];
@@ -55,90 +41,73 @@ export default async function AdminDashboard() {
   const protocol = host.startsWith("localhost") ? "http" : "https";
   const baseUrl = `${protocol}://${host}`;
 
-  const [pending, draft, published, rejected] = await Promise.all([
+  const [pending, published] = await Promise.all([
     fetchArticles(baseUrl, "PENDING"),
-    fetchArticles(baseUrl, "DRAFT"),
     fetchArticles(baseUrl, "PUBLISHED"),
-    fetchArticles(baseUrl, "REJECTED"),
   ]);
-
-  const counts = {
-    PENDING: pending.totalCount,
-    DRAFT: draft.totalCount,
-    PUBLISHED: published.totalCount,
-    REJECTED: rejected.totalCount,
-  };
-
-  const pendingArticles = pending.articles;
 
   return (
     <div className="space-y-8">
-      <h1 className="text-xl font-bold">ダッシュボード</h1>
-
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {(["PENDING", "DRAFT", "PUBLISHED", "REJECTED"] as const).map((s) => (
-          <Link
-            key={s}
-            href={`/admin/articles?status=${s}`}
-            prefetch={false}
-            className="rounded-lg border border-border bg-card p-4 text-center transition-colors hover:border-primary/50"
-          >
-            <div className="text-2xl font-bold">{counts[s]}</div>
-            <div
-              className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[s]}`}
-            >
-              {STATUS_LABELS[s]}
-            </div>
-          </Link>
-        ))}
+      <div className="grid grid-cols-2 gap-4">
+        <Link
+          href="/admin/articles?status=PENDING"
+          prefetch={false}
+          className="rounded-lg border border-border bg-card p-4 text-center transition-colors hover:border-yellow-500/50"
+        >
+          <div className="text-2xl font-bold">{pending.totalCount}</div>
+          <div className="mt-1 text-xs font-medium text-yellow-500">
+            承認待ち
+          </div>
+        </Link>
+        <Link
+          href="/admin/articles?status=PUBLISHED"
+          prefetch={false}
+          className="rounded-lg border border-border bg-card p-4 text-center transition-colors hover:border-emerald-500/50"
+        >
+          <div className="text-2xl font-bold">{published.totalCount}</div>
+          <div className="mt-1 text-xs font-medium text-emerald-500">
+            公開済
+          </div>
+        </Link>
       </div>
 
-      {/* PENDING review queue */}
-      {pendingArticles.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-500">
-            承認待ち ({pendingArticles.length})
-          </h2>
+      {/* Pending review queue */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-500">
+          承認待ち
+        </h2>
+        {pending.articles.length > 0 ? (
           <div className="space-y-2">
-            {pendingArticles.map((a) => (
+            {pending.articles.map((a) => (
               <div
                 key={a.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
+                className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-4 py-3"
               >
-                <Link
-                  href={`/admin/articles/${a.id}`}
-                  prefetch={false}
-                  className="min-w-0 flex-1 hover:text-primary"
-                >
-                  <p className="truncate text-sm font-medium">{a.title}</p>
-                  <p className="text-xs text-muted-foreground">{a.source}</p>
-                </Link>
-                <div className="ml-4 shrink-0">
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={a.originalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="line-clamp-1 text-sm font-medium hover:text-primary hover:underline"
+                  >
+                    {a.title}
+                  </a>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {a.source}
+                  </p>
+                </div>
+                <div className="shrink-0">
                   <ArticleActions articleId={a.id} status={a.status} />
                 </div>
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* Quick actions */}
-      <section className="flex gap-3">
-        <Link
-          href="/admin/articles?status=PENDING"
-          prefetch={false}
-          className="rounded-lg border border-primary bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
-        >
-          承認待ちを確認
-        </Link>
-        <Link
-          href="/admin/articles"
-          prefetch={false}
-          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
-        >
-          記事一覧を管理
-        </Link>
+        ) : (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            承認待ちの記事はありません
+          </p>
+        )}
       </section>
     </div>
   );
