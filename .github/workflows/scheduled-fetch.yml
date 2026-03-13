@@ -1,0 +1,28 @@
+name: Scheduled Article Fetch
+
+on:
+  schedule:
+    # 毎日 UTC 0:00, 6:00, 12:00, 18:00 (JST 9:00, 15:00, 21:00, 3:00)
+    - cron: '0 0,6,12,18 * * *'
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  fetch-articles:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger article fetch
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron")
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "HTTP Status: $http_code"
+          echo "$body" | python3 -m json.tool || echo "$body"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::Fetch failed with status $http_code"
+            exit 1
+          fi

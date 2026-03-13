@@ -9,7 +9,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "fetch": "node -e \"const u=process.env.SITE_URL||'http://localhost:8788';const s=process.env.CRON_SECRET||'';fetch(u+'/api/cron',{method:'POST',headers:{Authorization:'Bearer '+s}}).then(r=>r.json()).then(d=>{console.log(JSON.stringify(d,null,2));process.exit(d.ok?0:1)}).catch(e=>{console.error(e);process.exit(1)})\""
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
