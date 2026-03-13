@@ -49,23 +49,22 @@ export default async function AdminArticleEditPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/admin/articles"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          一覧に戻る
-        </Link>
-        <span className="text-muted-foreground">/</span>
-        <span className="text-sm text-muted-foreground">記事編集</span>
-      </div>
+      <Link
+        href="/admin/articles"
+        prefetch={false}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        一覧に戻る
+      </Link>
 
       {/* Original article info (read-only) */}
       <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <p className="font-medium">{article.originalTitle ?? article.title}</p>
+            <p className="font-medium">
+              {article.originalTitle ?? article.title}
+            </p>
             <p className="text-muted-foreground">{article.source}</p>
           </div>
           <a
@@ -78,13 +77,20 @@ export default async function AdminArticleEditPage({ params }: Props) {
             原文を確認
           </a>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          自動スコア: {article.score} ／ 取得: {article.fetchedAt ?? "—"}
-        </p>
+        <div className="mt-2 flex gap-4 text-xs text-muted-foreground">
+          <span>スコア: {article.score}</span>
+          <span>取得: {article.fetchedAt ?? "---"}</span>
+        </div>
+        {article.aiSummary && (
+          <div className="mt-3 rounded border border-border bg-card p-3 text-xs leading-relaxed text-muted-foreground">
+            <p className="mb-1 font-medium text-foreground">AI要約</p>
+            {article.aiSummary}
+          </div>
+        )}
       </div>
 
       {/* Edit form */}
-      <AdminArticleForm article={article} features={[]} />
+      <AdminArticleForm article={article} />
     </div>
   );
 }

@@ -3,12 +3,20 @@ export const runtime = "edge";
 import Link from "next/link";
 import { headers } from "next/headers";
 import type { ArticleWithRelations } from "@/lib/db/schema";
+import { ArticleActions } from "./ArticleActions";
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "text-yellow-500 bg-yellow-500/10",
   DRAFT: "text-blue-500 bg-blue-500/10",
   PUBLISHED: "text-emerald-500 bg-emerald-500/10",
   REJECTED: "text-red-500 bg-red-500/10",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  PENDING: "承認待ち",
+  DRAFT: "下書き",
+  PUBLISHED: "公開済",
+  REJECTED: "却下",
 };
 
 interface ArticlesApiResponse {
@@ -25,7 +33,7 @@ interface Props {
 
 export default async function AdminArticleList({ searchParams }: Props) {
   const params = await searchParams;
-  const filterStatus = params.status ?? "all";
+  const filterStatus = params.status ?? "PENDING";
 
   const headersList = await headers();
   const host = headersList.get("host") ?? "localhost:3000";
@@ -48,33 +56,36 @@ export default async function AdminArticleList({ searchParams }: Props) {
     // fallback to empty
   }
 
-  const STATUSES = ["all", "PENDING", "DRAFT", "PUBLISHED", "REJECTED"] as const;
+  const STATUSES = [
+    { key: "PENDING", label: "承認待ち" },
+    { key: "DRAFT", label: "下書き" },
+    { key: "PUBLISHED", label: "公開済" },
+    { key: "REJECTED", label: "却下" },
+    { key: "all", label: "すべて" },
+  ] as const;
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">記事一覧</h1>
-        <Link
-          href="/admin/articles/new"
-          className="rounded-lg border border-primary bg-primary/10 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
-        >
-          + 新規作成
-        </Link>
-      </div>
+      <h1 className="text-xl font-bold">記事一覧</h1>
 
       {/* Status filter */}
       <div className="flex flex-wrap gap-2">
         {STATUSES.map((s) => (
           <Link
-            key={s}
-            href={s === "all" ? "/admin/articles" : `/admin/articles?status=${s}`}
+            key={s.key}
+            href={
+              s.key === "all"
+                ? "/admin/articles?status=all"
+                : `/admin/articles?status=${s.key}`
+            }
+            prefetch={false}
             className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
-              filterStatus === s
+              filterStatus === s.key
                 ? "border-primary text-primary"
                 : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground"
             }`}
           >
-            {s === "all" ? "すべて" : s}
+            {s.label}
           </Link>
         ))}
       </div>
@@ -93,9 +104,6 @@ export default async function AdminArticleList({ searchParams }: Props) {
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
                 ステータス
               </th>
-              <th className="hidden px-4 py-2.5 text-left font-medium text-muted-foreground md:table-cell">
-                スコア
-              </th>
               <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
                 操作
               </th>
@@ -103,9 +111,18 @@ export default async function AdminArticleList({ searchParams }: Props) {
           </thead>
           <tbody className="divide-y divide-border">
             {articles.map((a) => (
-              <tr key={a.id} className="bg-card transition-colors hover:bg-accent/50">
+              <tr
+                key={a.id}
+                className="bg-card transition-colors hover:bg-accent/50"
+              >
                 <td className="px-4 py-3">
-                  <p className="line-clamp-1 font-medium">{a.title}</p>
+                  <Link
+                    href={`/admin/articles/${a.id}`}
+                    prefetch={false}
+                    className="line-clamp-1 font-medium hover:text-primary"
+                  >
+                    {a.title}
+                  </Link>
                   {a.originalTitle && (
                     <p className="line-clamp-1 text-xs text-muted-foreground">
                       {a.originalTitle}
@@ -119,26 +136,18 @@ export default async function AdminArticleList({ searchParams }: Props) {
                   <span
                     className={`rounded px-1.5 py-0.5 text-xs font-medium ${STATUS_COLORS[a.status]}`}
                   >
-                    {a.status}
+                    {STATUS_LABELS[a.status] ?? a.status}
                   </span>
                 </td>
-                <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">
-                  {a.score}
-                </td>
                 <td className="px-4 py-3">
-                  <Link
-                    href={`/admin/articles/${a.id}`}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    編集
-                  </Link>
+                  <ArticleActions articleId={a.id} status={a.status} />
                 </td>
               </tr>
             ))}
             {articles.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}
                   className="px-4 py-8 text-center text-muted-foreground"
                 >
                   記事がありません
