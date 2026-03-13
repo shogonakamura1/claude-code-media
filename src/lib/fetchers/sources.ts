@@ -1,5 +1,8 @@
 import type { Source, RawItem } from "./types";
 import { parseRSS, parseAtom, parseGitHubAtom } from "./rss-parser";
+import type { Db } from "@/lib/db";
+import { sources as sourcesTable } from "@/lib/db/schema";
+import { eq, asc } from "drizzle-orm";
 
 export const SOURCES: Source[] = [
   // 公式ソース
@@ -126,6 +129,31 @@ export const SOURCES: Source[] = [
     authorType: "media",
   },
 ];
+
+/** DBからアクティブなソースを取得。DB未接続時はハードコード定数にフォールバック */
+export async function fetchSourcesFromDb(db?: Db): Promise<Source[]> {
+  if (!db) return SOURCES;
+  try {
+    const rows = await db
+      .select()
+      .from(sourcesTable)
+      .where(eq(sourcesTable.isActive, 1))
+      .orderBy(asc(sourcesTable.label));
+
+    if (rows.length === 0) return SOURCES;
+
+    return rows.map((r) => ({
+      id: r.id,
+      url: r.url,
+      type: r.type,
+      priority: r.priority,
+      label: r.label,
+      authorType: r.authorType,
+    }));
+  } catch {
+    return SOURCES;
+  }
+}
 
 async function fetchWithTimeout(url: string): Promise<string> {
   const res = await fetch(url, {

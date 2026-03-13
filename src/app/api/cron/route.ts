@@ -56,7 +56,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const results = await fetchAll();
+    const db = getDb({ DB: envVars.DB, ADMIN_PASSWORD_HASH: "" });
+    const results = await fetchAll(db);
 
     const summary = results.map((r) => ({
       source: r.label,
@@ -76,8 +77,6 @@ export async function POST(request: Request) {
     const errors: string[] = [];
 
     try {
-      const db = getDb({ DB: envVars.DB, ADMIN_PASSWORD_HASH: "" });
-
       for (let i = 0; i < allScored.length; i += 10) {
         const batch = allScored.slice(i, i + 10);
 
