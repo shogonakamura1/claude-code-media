@@ -1,9 +1,12 @@
 export const runtime = "edge";
 export const revalidate = 300;
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { ArticleCard } from "@/components/ArticleCard";
+import { WebSiteJsonLd, ArticleListJsonLd } from "@/components/JsonLd";
+import { SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants";
 import type { ArticleWithRelations } from "@/lib/db/schema";
 
 const CATEGORIES = [
@@ -15,6 +18,39 @@ const CATEGORIES = [
 ];
 
 const PAGE_SIZE = 20;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  news: "ニュース",
+  tips: "Tips",
+  tutorial: "チュートリアル",
+  "case-study": "事例・ハック",
+};
+
+export async function generateMetadata({
+  searchParams,
+}: HomeProps): Promise<Metadata> {
+  const params = await searchParams;
+  const category = params.category;
+
+  if (category && CATEGORY_LABELS[category]) {
+    const label = CATEGORY_LABELS[category];
+    return {
+      title: `${label}の記事一覧`,
+      description: `${SITE_NAME}の${label}カテゴリの記事一覧。Claude Code・AI開発ツールの${label}を日本語で紹介。`,
+      alternates: {
+        canonical: `/?category=${category}`,
+      },
+    };
+  }
+
+  return {
+    title: `${SITE_NAME} - Claude Code / AI開発の最新情報`,
+    description: SITE_DESCRIPTION,
+    alternates: {
+      canonical: "/",
+    },
+  };
+}
 
 interface HomeProps {
   searchParams: Promise<{ category?: string; page?: string }>;
@@ -116,6 +152,9 @@ export default async function HomePage({ searchParams }: HomeProps) {
 
   return (
     <div className="space-y-8">
+      <WebSiteJsonLd />
+      <ArticleListJsonLd articles={articles} />
+
       {/* Page title */}
       <section className="pt-6">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">
