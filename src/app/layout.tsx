@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Noto_Sans_JP } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Toaster } from "@/components/ui/sonner";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/constants";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -21,16 +22,37 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "ClaudeNote - Claude Code / AI開発の最新情報",
-    template: "%s | ClaudeNote",
+    default: `${SITE_NAME} - Claude Code / AI開発の最新情報`,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    "Claude Code・Anthropic・AI開発ツールの最新情報を日本語で届けるキュレーションメディア。",
+  description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     type: "website",
     locale: "ja_JP",
-    siteName: "ClaudeNote",
+    siteName: SITE_NAME,
+    title: `${SITE_NAME} - Claude Code / AI開発の最新情報`,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} - Claude Code / AI開発の最新情報`,
+    description: SITE_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+    },
   },
 };
 
