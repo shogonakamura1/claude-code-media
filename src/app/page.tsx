@@ -4,7 +4,10 @@ export const revalidate = 300;
 import Link from "next/link";
 import { headers } from "next/headers";
 import { ArticleCard } from "@/components/ArticleCard";
+import { InFeedAd, DisplayAd } from "@/components/AdUnit";
 import type { ArticleWithRelations } from "@/lib/db/schema";
+
+const AD_INTERVAL = 2;
 
 const CATEGORIES = [
   { slug: "all", name: "すべて" },
@@ -157,20 +160,27 @@ export default async function HomePage({ searchParams }: HomeProps) {
         </p>
       ) : (
         <div className="space-y-8">
-          {dateGroups.map((group) => (
-            <section key={group.date}>
-              <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium text-muted-foreground">
-                {group.label}
-              </h2>
-              <div className="space-y-4">
-                {group.articles.map((article) => (
-                  <ArticleCard key={article.id} article={article} />
-                ))}
-              </div>
-            </section>
+          {dateGroups.map((group, index) => (
+            <div key={group.date}>
+              <section>
+                <h2 className="mb-3 border-b border-border pb-2 text-sm font-medium text-muted-foreground">
+                  {group.label}
+                </h2>
+                <div className="space-y-4">
+                  {group.articles.map((article) => (
+                    <ArticleCard key={article.id} article={article} />
+                  ))}
+                </div>
+              </section>
+              {(index + 1) % AD_INTERVAL === 0 &&
+                index < dateGroups.length - 1 && <InFeedAd />}
+            </div>
           ))}
         </div>
       )}
+
+      {/* Display Ad above pagination */}
+      {articles.length > 0 && <DisplayAd />}
 
       {/* Pagination */}
       {totalCount > 0 && (
