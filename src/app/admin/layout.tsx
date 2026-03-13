@@ -22,13 +22,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               記事管理
             </Link>
             <Link
-              href="/admin/sources"
-              prefetch={false}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              ソース管理
-            </Link>
-            <Link
               href="/admin/fetch"
               prefetch={false}
               className="text-muted-foreground hover:text-foreground"
