@@ -140,7 +140,15 @@ async function fetchWithTimeout(url: string): Promise<string> {
 }
 
 export async function fetchSource(source: Source): Promise<RawItem[]> {
-  const text = await fetchWithTimeout(source.url);
+  let url = source.url;
+
+  // HN API: 過去7日間 + ポイント20以上に動的に制限
+  if (source.type === "hn-api") {
+    const sevenDaysAgo = Math.floor((Date.now() - 7 * 24 * 60 * 60 * 1000) / 1000);
+    url += `&numericFilters=created_at_i>${sevenDaysAgo},points>20`;
+  }
+
+  const text = await fetchWithTimeout(url);
 
   switch (source.type) {
     case "rss":
@@ -158,6 +166,7 @@ export async function fetchSource(source: Source): Promise<RawItem[]> {
         description: h.story_text?.slice(0, 300) ?? "",
         publishedAt: h.created_at ?? new Date().toISOString(),
         source: source.label,
+        engagement: h.points ?? 0,
       }));
     }
     case "reddit-api": {
@@ -171,6 +180,7 @@ export async function fetchSource(source: Source): Promise<RawItem[]> {
           ? new Date(c.data.created_utc * 1000).toISOString()
           : new Date().toISOString(),
         source: source.label,
+        engagement: c.data?.ups ?? 0,
       }));
     }
   }
