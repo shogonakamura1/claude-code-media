@@ -24,7 +24,14 @@ export const SOURCES: Source[] = [
     authorType: "influencer",
   },
   // tomoam-note: RSS feed not available, removed
-  // boris-power: RSS feed not available, removed
+  {
+    id: "boris-tane",
+    url: "https://boristane.com/rss.xml",
+    type: "rss",
+    priority: "medium",
+    label: "Boris Tane",
+    authorType: "influencer",
+  },
 
   // 著名人・インフルエンサー
   {

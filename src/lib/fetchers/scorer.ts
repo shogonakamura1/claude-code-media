@@ -34,6 +34,7 @@ const SCORE_KEYWORDS: { keyword: string; weight: number }[] = [
 
   // Anthropic/Claude系
   { keyword: "anthropic", weight: 3 },
+  { keyword: "boris tane", weight: 3 },
   { keyword: "claude 4", weight: 3 },
   { keyword: "claude opus", weight: 3 },
   { keyword: "claude sonnet", weight: 3 },
