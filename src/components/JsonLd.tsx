@@ -34,7 +34,7 @@ export function ArticleListJsonLd({
     itemListElement: articles.slice(0, 10).map((article, index) => ({
       "@type": "ListItem",
       position: index + 1,
-      url: article.originalUrl,
+      url: `${SITE_URL}/articles/${article.slug}`,
       name: article.title,
     })),
   };
