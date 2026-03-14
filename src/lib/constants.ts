@@ -1,6 +1,6 @@
 /** サイトの公開URL（末尾スラッシュなし） */
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://claude-code-media.pages.dev";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://claudenote.jp";
 
 export const SITE_NAME = "ClaudeNote";
 
