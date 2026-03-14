@@ -112,14 +112,14 @@ export async function POST(request: Request) {
             }
 
             const id = generateId();
-            const isEnglish = geminiData?.language === "en";
+            const isNonJapanese = geminiData?.language !== "ja";
 
-            // 英語記事: title = titleJa, originalTitle = 原文
+            // 日本語以外の記事: title = titleJa, originalTitle = 原文
             // 日本語記事: title = 原文, originalTitle = null
             const titleJa = geminiData?.titleJa;
             const articleTitle =
-              isEnglish && titleJa ? titleJa : item.title;
-            const originalTitle = isEnglish ? item.title : null;
+              isNonJapanese && titleJa ? titleJa : item.title;
+            const originalTitle = isNonJapanese ? item.title : null;
 
             const slug = generateSlug(articleTitle) || id;
 
