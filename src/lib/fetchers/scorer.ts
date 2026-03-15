@@ -187,9 +187,13 @@ export function scoreItem(
 
   qualityBonus += calcEngagementBonus(item.engagement);
 
-  // 5. 鮮度係数（乗算）
+  // 5. 鮮度係数（乗算）— 高エンゲージメント記事は鮮度ペナルティを緩和
   const isOfficial = authorType === "official";
-  const freshnessFactor = calcFreshnessFactor(item.publishedAt, isOfficial);
+  const isHighEngagement = (item.engagement ?? 0) >= 30;
+  const freshnessFactor = calcFreshnessFactor(
+    item.publishedAt,
+    isOfficial || isHighEngagement
+  );
 
   // 6. 最終スコア = (関連度 + 品質ボーナス) × 鮮度係数
   const rawScore = relevance + qualityBonus;
