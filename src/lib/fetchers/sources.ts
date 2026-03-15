@@ -118,6 +118,24 @@ export const SOURCES: Source[] = [
     authorType: "community",
   },
 
+  // コミュニティ（人気記事API）
+  {
+    id: "zenn-trending",
+    url: "https://zenn.dev/api/articles?topicname=claudecode&order=liked_count&count=30",
+    type: "zenn-api",
+    priority: "medium",
+    label: "Zenn (人気)",
+    authorType: "community",
+  },
+  {
+    id: "qiita-trending",
+    url: "https://qiita.com/api/v2/items?query=tag:claudecode&sort=stock&per_page=30",
+    type: "qiita-api",
+    priority: "medium",
+    label: "Qiita (人気)",
+    authorType: "community",
+  },
+
   // メディア
   {
     id: "the-verge-ai",
@@ -185,6 +203,8 @@ export async function fetchSource(source: Source): Promise<RawItem[]> {
 
   const text = await fetchWithTimeout(url);
 
+  const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
+
   switch (source.type) {
     case "rss":
       return parseRSS(text, source.label);
@@ -217,6 +237,46 @@ export async function fetchSource(source: Source): Promise<RawItem[]> {
         source: source.label,
         engagement: c.data?.ups ?? 0,
       }));
+    }
+    case "zenn-api": {
+      const data = JSON.parse(text);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data.articles ?? [])
+        .filter((a: any) => {
+          const publishedAt = a.published_at ?? a.created_at;
+          if (!publishedAt) return false;
+          const ageMs = Date.now() - new Date(publishedAt).getTime();
+          return ageMs < TWO_WEEKS_MS && (a.liked_count ?? 0) >= 30;
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((a: any) => ({
+          title: a.title ?? "",
+          url: `https://zenn.dev${a.path ?? `/articles/${a.slug}`}`,
+          description: (a.body_letters_count ? `${a.body_letters_count}文字` : ""),
+          publishedAt: a.published_at ?? a.created_at ?? new Date().toISOString(),
+          source: source.label,
+          engagement: a.liked_count ?? 0,
+        }));
+    }
+    case "qiita-api": {
+      const data = JSON.parse(text);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (Array.isArray(data) ? data : [])
+        .filter((a: any) => {
+          const createdAt = a.created_at;
+          if (!createdAt) return false;
+          const ageMs = Date.now() - new Date(createdAt).getTime();
+          return ageMs < TWO_WEEKS_MS && (a.likes_count ?? 0) >= 30;
+        })
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((a: any) => ({
+          title: a.title ?? "",
+          url: a.url ?? "",
+          description: (a.body ?? "").slice(0, 300).replace(/<[^>]+>/g, " ").trim(),
+          publishedAt: a.created_at ?? new Date().toISOString(),
+          source: source.label,
+          engagement: (a.likes_count ?? 0) + (a.stocks_count ?? 0),
+        }));
     }
   }
 }
