@@ -6,7 +6,7 @@ export interface GeminiSummaryResult {
   contentType: "news" | "tips" | "tutorial" | "case-study";
   readingTimeMin: number;
   language: string;
-  titleJa?: string; // 英語タイトルの日本語翻訳（英語記事のみ）
+  titleJa?: string; // タイトルの日本語翻訳（日本語以外の記事）
 }
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -23,7 +23,7 @@ const SYSTEM_PROMPT = `あなたは技術記事を分析するアシスタント
   "contentType": "news | tips | tutorial | case-study",
   "readingTimeMin": 数値（推定読了時間・分）,
   "language": "原文の言語コード（ja, en など）",
-  "titleJa": "英語タイトルの日本語翻訳（原文が英語の場合のみ出力。日本語記事の場合は省略）"
+  "titleJa": "タイトルの日本語翻訳（原文が日本語以外の場合は必ず出力。日本語記事の場合は省略）"
 }
 
 ## difficulty判定基準
