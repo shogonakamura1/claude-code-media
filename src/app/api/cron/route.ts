@@ -17,11 +17,18 @@ const CONTENT_TYPE_TO_CATEGORY: Record<string, string> = {
 };
 
 function generateSlug(title: string): string {
-  return title
+  const ascii = title
     .toLowerCase()
-    .replace(/[^a-z0-9\u3000-\u9fff]+/g, "-")
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80);
+
+  // ASCII部分が短すぎる場合（日本語タイトル等）はタイムスタンプで補完
+  if (ascii.length < 8) {
+    const ts = Date.now().toString(36);
+    return ascii ? `${ascii}-${ts}` : ts;
+  }
+  return ascii;
 }
 
 function generateId(): string {
