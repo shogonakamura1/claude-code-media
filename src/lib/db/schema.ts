@@ -102,7 +102,7 @@ export const sources = sqliteTable("sources", {
   id: text("id").primaryKey(),
   url: text("url").notNull(),
   type: text("type", {
-    enum: ["rss", "atom", "hn-api", "reddit-api", "github-atom"],
+    enum: ["rss", "atom", "hn-api", "reddit-api", "github-atom", "zenn-api", "qiita-api"],
   }).notNull(),
   priority: text("priority", {
     enum: ["high", "medium", "low"],

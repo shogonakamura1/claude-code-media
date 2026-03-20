@@ -1,4 +1,4 @@
-export type SourceType = "rss" | "atom" | "hn-api" | "reddit-api" | "github-atom";
+export type SourceType = "rss" | "atom" | "hn-api" | "reddit-api" | "github-atom" | "zenn-api" | "qiita-api";
 export type Priority = "high" | "medium" | "low";
 export type AuthorType = "official" | "influencer" | "community" | "media";
 

@@ -34,10 +34,12 @@ async function getArticle(slug: string): Promise<ArticleWithCategory | null> {
     const env = getRequestContext().env as { DB: D1Database };
     const db = getDb({ DB: env.DB, ADMIN_PASSWORD_HASH: "" });
 
+    const decodedSlug = decodeURIComponent(slug);
+
     const rows = await db
       .select()
       .from(articles)
-      .where(and(eq(articles.slug, slug), eq(articles.status, "PUBLISHED")))
+      .where(and(eq(articles.slug, decodedSlug), eq(articles.status, "PUBLISHED")))
       .limit(1);
 
     if (rows.length === 0) return null;
