@@ -221,15 +221,15 @@ export default async function ArticleDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      {/* AI要約 */}
-      {article.aiSummary && (
+      {/* AI詳細解説 */}
+      {(article.aiDetailedSummary || article.aiSummary) && (
         <section className="rounded-lg border border-border bg-muted/30 p-6">
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-            AI要約
+            AI解説
           </h2>
-          <p className="whitespace-pre-line leading-relaxed">
-            {article.aiSummary}
-          </p>
+          <div className="whitespace-pre-line leading-relaxed">
+            {article.aiDetailedSummary ?? article.aiSummary}
+          </div>
         </section>
       )}
 
