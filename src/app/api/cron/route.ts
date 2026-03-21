@@ -148,6 +148,7 @@ export async function POST(request: Request) {
               status: articleStatus,
               score: item.score,
               aiSummary: geminiData?.summary ?? null,
+              aiDetailedSummary: geminiData?.detailedSummary ?? null,
               difficulty: geminiData?.difficulty ?? null,
               contentType: geminiData?.contentType ?? null,
               readingTimeMin: geminiData?.readingTimeMin ?? null,

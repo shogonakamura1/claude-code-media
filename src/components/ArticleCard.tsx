@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import type { ArticleWithRelations } from "@/lib/db/schema";
@@ -38,7 +40,7 @@ export function ArticleCard({ article }: Props) {
     <Card className="gap-3 border-border bg-card transition-colors hover:border-primary/50">
       <CardHeader className="pb-0">
         {/* バッジ行 */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
           {article.category && (
             <Badge
               variant="outline"
@@ -60,20 +62,29 @@ export function ArticleCard({ article }: Props) {
               variant="outline"
               className="border-amber-500 text-xs text-amber-500"
             >
-              ⭐ 必読
+              必読
             </Badge>
           )}
+          {/* 外部サイトへ直行リンク */}
+          <a
+            href={article.originalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-primary"
+            title="原文サイトへ"
+          >
+            <span className="hidden sm:inline">{article.source}</span>
+            <ExternalLink className="h-3.5 w-3.5" />
+          </a>
         </div>
 
-        {/* タイトル（原文リンク） */}
-        <a
-          href={article.originalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* タイトル（記事詳細ページへ） */}
+        <Link
+          href={`/articles/${article.slug}`}
           className="mt-1 line-clamp-2 font-semibold leading-snug hover:text-primary"
         >
           {article.title}
-        </a>
+        </Link>
         {article.originalTitle && article.originalTitle !== article.title && (
           <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
             {article.originalTitle}
