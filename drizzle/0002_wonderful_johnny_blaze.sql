@@ -1,0 +1,1 @@
+ALTER TABLE `articles` ADD `ai_detailed_summary` text;

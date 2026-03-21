@@ -77,6 +77,7 @@ export async function POST(request: Request) {
       .update(articles)
       .set({
         aiSummary: result.summary,
+        aiDetailedSummary: result.detailedSummary,
         difficulty: result.difficulty,
         contentType: result.contentType,
         readingTimeMin: result.readingTimeMin,

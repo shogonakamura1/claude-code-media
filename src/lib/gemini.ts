@@ -2,6 +2,7 @@
 
 export interface GeminiSummaryResult {
   summary: string;
+  detailedSummary: string;
   difficulty: "beginner" | "intermediate" | "advanced";
   contentType: "news" | "tips" | "tutorial" | "case-study";
   readingTimeMin: number;
@@ -18,7 +19,8 @@ const SYSTEM_PROMPT = `あなたは技術記事を分析するアシスタント
 
 ## 出力フォーマット
 {
-  "summary": "3行以内の日本語要約。駆け出しエンジニアにもわかる平易な言葉で書く。",
+  "summary": "3行以内の日本語要約。駆け出しエンジニアにもわかる平易な言葉で書く。一覧ページで表示するため簡潔に。",
+  "detailedSummary": "記事詳細ページ用の詳細な日本語解説（200〜400字程度）。以下の構成で書く:\n・この記事のポイント（箇条書き3〜5個）\n・背景・文脈の解説\n・開発者が実務で活かせるポイント",
   "difficulty": "beginner | intermediate | advanced",
   "contentType": "news | tips | tutorial | case-study",
   "readingTimeMin": 数値（推定読了時間・分）,
@@ -94,6 +96,7 @@ URL: ${url}`;
 
   return {
     summary: parsed.summary,
+    detailedSummary: parsed.detailedSummary ?? "",
     difficulty: parsed.difficulty,
     contentType: parsed.contentType,
     readingTimeMin: parsed.readingTimeMin ?? 5,

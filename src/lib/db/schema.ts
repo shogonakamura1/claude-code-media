@@ -52,7 +52,8 @@ export const articles = sqliteTable("articles", {
     .notNull()
     .default("PENDING"),
   score: integer("score").default(0),       // 自動取得時のスコア
-  aiSummary: text("ai_summary"),             // Gemini生成の3行要約（日本語）
+  aiSummary: text("ai_summary"),             // Gemini生成の3行要約（日本語・一覧用）
+  aiDetailedSummary: text("ai_detailed_summary"), // 詳細要約（記事詳細ページ用）
   difficulty: text("difficulty", {
     enum: ["beginner", "intermediate", "advanced"],
   }),
