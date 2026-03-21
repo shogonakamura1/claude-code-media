@@ -117,6 +117,40 @@ export const sources = sqliteTable("sources", {
   updatedAt: text("updated_at").notNull().default(sql`(datetime('now'))`),
 });
 
+// ── SEOメトリクス（Search Console日次データ） ─────────────────────────────
+export const seoMetrics = sqliteTable("seo_metrics", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").references(() => articles.id, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  query: text("query"),                   // 検索クエリ
+  clicks: integer("clicks").notNull().default(0),
+  impressions: integer("impressions").notNull().default(0),
+  ctr: text("ctr").notNull().default("0"),  // SQLiteにDECIMAL型がないためtext
+  position: text("position").notNull().default("0"),
+  date: text("date").notNull(),           // YYYY-MM-DD
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
+// ── SEO改善提案（AI生成） ──────────────────────────────────────────────────
+export const seoImprovements = sqliteTable("seo_improvements", {
+  id: text("id").primaryKey(),
+  articleId: text("article_id").notNull().references(() => articles.id, { onDelete: "cascade" }),
+  type: text("type", {
+    enum: ["title", "description", "content", "internal_link"],
+  }).notNull(),
+  currentValue: text("current_value"),
+  suggestedValue: text("suggested_value").notNull(),
+  reason: text("reason").notNull(),       // 改善理由
+  priority: text("priority", {
+    enum: ["high", "medium", "low"],
+  }).notNull().default("medium"),
+  status: text("status", {
+    enum: ["pending", "approved", "applied", "rejected"],
+  }).notNull().default("pending"),
+  appliedAt: text("applied_at"),
+  createdAt: text("created_at").notNull().default(sql`(datetime('now'))`),
+});
+
 // ── 型エクスポート ─────────────────────────────────────────────────────────
 export type Category = typeof categories.$inferSelect;
 export type Feature = typeof features.$inferSelect;
@@ -127,6 +161,8 @@ export type Difficulty = "beginner" | "intermediate" | "advanced";
 export type ContentType = "news" | "tips" | "tutorial" | "case-study";
 
 export type SourceRow = typeof sources.$inferSelect;
+export type SeoMetric = typeof seoMetrics.$inferSelect;
+export type SeoImprovement = typeof seoImprovements.$inferSelect;
 
 export type ArticleWithRelations = Article & {
   category: Category | null;
