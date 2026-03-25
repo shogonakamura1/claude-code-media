@@ -55,6 +55,48 @@ Claudeは **戦略パートナー兼実装者** の両方を担う。
 
 ---
 
+## 自律進化するサイト（Autonomous Evolution）
+
+ClaudeNoteは **人間の介入を最小化し、自律的に改善し続けるサイト** を目指す。
+
+### 自律進化の3つの柱
+
+1. **コンテンツの自動収集・要約**（稼働済み）
+   - RSS/APIから記事を自動収集 → Gemini 2.5 Flashで要約 → スコアに基づき自動公開
+   - Cron Triggerで日次実行
+
+2. **SEO自動最適化**（実装済み）
+   - Google Search Console APIから日次でパフォーマンスデータを収集
+   - AIが低CTR記事・デッドコンテンツ等の問題を自動検出
+   - Gemini 2.5 Flashで具体的な改善案（タイトル変更等）を自動生成
+   - 管理画面で承認 → 自動適用（将来的には低リスク改善は完全自動化）
+
+3. **成長ループの自動化**（計画中）
+   - トレンド予測に基づく先行記事提案
+   - A/Bテストによる自動効果測定・ロールバック
+   - 内部リンク構造の自動最適化
+
+### Claudeの自律的行動指針
+
+- SEO改善の余地を見つけたら、指示を待たずに提案・実装する
+- メトリクスに基づく判断を優先し、感覚的な改善は避ける
+- 自動化の範囲を段階的に拡大し、オーナーの介入を減らす
+- すべての自動変更は履歴を残し、ロールバック可能にする
+
+### SEO自動最適化の詳細
+
+詳細は [docs/seo-automation.md](docs/seo-automation.md) を参照。
+
+| コンポーネント | エンドポイント | 説明 |
+|---|---|---|
+| データ収集 | `POST /api/seo/collect` | Search Consoleからメトリクス取得 |
+| AI分析 | `POST /api/seo/suggest` | 問題検出 + 改善案生成 |
+| メトリクスAPI | `GET /api/seo/metrics` | ダッシュボード用データ |
+| 提案管理 | `PATCH /api/seo/improvements` | 承認/却下/適用 |
+| ダッシュボード | `/admin/seo` | SEOパフォーマンス可視化 |
+
+---
+
 ## プロジェクト概要
 
 Claude Code、Anthropic、AI開発ツールに関するキュレーションメディアサイト（日本語）。
@@ -93,6 +135,11 @@ src/
 │   └── api/
 │       ├── articles/       # 記事CRUD API
 │       ├── cron/           # 記事自動収集エンドポイント（Edge Function）
+│       ├── seo/            # SEO自動最適化API
+│       │   ├── collect/    # Search Consoleデータ収集
+│       │   ├── suggest/    # AI改善提案生成
+│       │   ├── metrics/    # メトリクス取得
+│       │   └── improvements/ # 提案ステータス管理
 │       ├── summarize/      # Gemini要約API（認証付き）
 │       └── summarize-live/ # ライブ要約API
 ├── components/             # UIコンポーネント
@@ -117,6 +164,8 @@ src/
 │   │   ├── index.ts        # フェッチャーエントリポイント
 │   │   └── __tests__/      # scorer単体テスト
 │   ├── gemini.ts           # Gemini 2.5 Flash連携（要約・難易度判定）
+│   ├── google-search-console.ts # Search Console APIクライアント
+│   ├── seo-analyzer.ts     # SEO分析ロジック（問題検出・プロンプト生成）
 │   ├── fetch-live-articles.ts # ライブ記事取得ロジック
 │   ├── mock-data.ts        # 開発用モックデータ
 │   └── utils.ts            # ユーティリティ
@@ -132,6 +181,8 @@ e2e/
 - **categories**: 記事カテゴリ（news, tips, tutorial, case-study）
 - **features**: Claude Code機能タグ（skills, hooks, sub-agents, MCP等）
 - **tags / articleTags / articleFeatures**: 多対多リレーション
+- **seo_metrics**: Search Console日次データ（クリック、表示、CTR、順位）
+- **seo_improvements**: AI生成のSEO改善提案（タイトル改善等）
 
 ## 開発ルール
 

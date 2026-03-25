@@ -28,6 +28,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             >
               フェッチ
             </Link>
+            <Link
+              href="/admin/seo"
+              prefetch={false}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              SEO
+            </Link>
           </div>
         </div>
       </nav>
