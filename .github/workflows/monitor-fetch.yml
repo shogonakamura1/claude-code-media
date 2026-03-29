@@ -1,0 +1,144 @@
+name: Monitor & Fix Fetch Failures
+
+on:
+  workflow_run:
+    workflows: ["Scheduled Article Fetch"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+jobs:
+  analyze-and-fix:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+
+      - name: Fetch failed run logs
+        id: logs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_ID=${{ github.event.workflow_run.id }}
+          RUN_URL=${{ github.event.workflow_run.html_url }}
+
+          echo "run_url=$RUN_URL" >> "$GITHUB_OUTPUT"
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+          # 失敗したジョブのログを取得
+          gh run view "$RUN_ID" --log-failed 2>&1 | tail -100 > /tmp/failed_logs.txt || true
+
+          # GITHUB_OUTPUT に保存（multiline）
+          {
+            echo "logs<<LOGS_EOF"
+            cat /tmp/failed_logs.txt
+            echo "LOGS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Analyze and fix with Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          direct_prompt: |
+            ## タスク: scheduled-fetch ワークフロー失敗の自動分析・修正
+
+            ### 失敗ログ
+            ```
+            ${{ steps.logs.outputs.logs }}
+            ```
+
+            ワークフロー実行URL: ${{ steps.logs.outputs.run_url }}
+
+            ### 指示
+
+            1. **原因分析**: 上記のログから失敗の根本原因を特定してください
+            2. **コード確認**: 関連するコードを確認してください
+               - src/app/api/cron/route.ts（cronエンドポイント）
+               - src/lib/fetchers/（RSS/APIフェッチャー）
+               - src/lib/gemini.ts（Gemini要約API連携）
+               - src/lib/fetchers/sources.ts（ソース定義）
+            3. **修正**: コードの修正で解決できる場合は修正してください
+               - 修正する場合は新しいブランチを作成してコミットし、developブランチへのPRを作成してください
+               - ブランチ名: fix/auto-fetch-$(date +%Y%m%d-%H%M)
+               - コミットメッセージはConventional Commits形式で
+            4. **修正不要の場合**: 一時的なエラー（ネットワーク障害等）でコード修正が不要な場合は、修正せずレポートのみ出力してください
+
+            ### 原因分析の観点
+            - HTTP 5xx → Cloudflare Worker側の問題（コード/設定）
+            - HTTP 401 → CRON_SECRET の不一致や期限切れ
+            - タイムアウト → 記事数過多やレート制限
+            - Gemini API エラー → APIキーやレート制限
+            - RSSパースエラー → ソース側のフォーマット変更
+            - D1エラー → DBスキーマ不整合やクォータ超過
+
+            ### 重要な制約
+            - Edge Runtime互換のコードのみ使用すること
+            - 既存のテストが壊れないようにすること
+            - console.logをコードに残さないこと
+
+            ### レポート出力
+            分析結果を以下のフォーマットで **必ず最後に** 出力してください:
+
+            === FETCH_MONITOR_REPORT ===
+            日時: (ISO8601)
+            原因: (1-2行で簡潔に)
+            カテゴリ: (一時的エラー|コードバグ|外部サービス障害|設定問題|RSSソース変更)
+            深刻度: (低|中|高)
+            修正: (修正内容の要約、または「修正不要」)
+            PR: (作成したPR URL、または「なし」)
+            推奨アクション: (オーナーに求めるアクション、または「不要」)
+            === END_REPORT ===
+
+      - name: Extract report
+        id: report
+        shell: bash
+        run: |
+          CLAUDE_OUTPUT=$(cat <<'CLAUDE_EOF'
+          ${{ steps.claude.outputs.result }}
+          CLAUDE_EOF
+          )
+
+          # レポート部分を抽出
+          REPORT=$(echo "$CLAUDE_OUTPUT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+
+          if [ -z "$REPORT" ]; then
+            REPORT="Claude分析は完了しましたが、構造化レポートを抽出できませんでした。GitHub Actionsログを確認してください。"
+          fi
+
+          {
+            echo "report<<REPORT_EOF"
+            echo "$REPORT"
+            echo "REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send email report
+        if: ${{ secrets.SMTP_SERVER != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[ClaudeNote] 記事フェッチ失敗レポート"
+          html_body: |
+            <h2>ClaudeNote 自動フェッチ監視レポート</h2>
+            <hr>
+            <p><strong>実行日時:</strong> ${{ github.event.workflow_run.run_started_at }}</p>
+            <p><strong>ワークフロー:</strong> <a href="${{ steps.logs.outputs.run_url }}">GitHub Actions ログ</a></p>
+            <hr>
+            <pre>${{ steps.report.outputs.report }}</pre>
+            <hr>
+            <p><small>このメールはGitHub Actionsから自動送信されています。</small></p>
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: ClaudeNote Monitor <${{ secrets.SMTP_USERNAME }}>
