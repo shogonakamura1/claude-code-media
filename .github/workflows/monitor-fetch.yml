@@ -123,7 +123,9 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Send email report
-        if: ${{ secrets.SMTP_SERVER != '' }}
+        if: ${{ env.HAS_SMTP == 'true' }}
+        env:
+          HAS_SMTP: ${{ secrets.SMTP_SERVER != '' && 'true' || 'false' }}
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
@@ -141,4 +143,4 @@ jobs:
             <hr>
             <p><small>このメールはGitHub Actionsから自動送信されています。</small></p>
           to: ${{ secrets.NOTIFY_EMAIL }}
-          from: ClaudeNote Monitor <${{ secrets.SMTP_USERNAME }}>
+          from: "ClaudeNote Monitor"
