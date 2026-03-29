@@ -44,25 +44,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // デバッグ: envオブジェクトのキー一覧を確認（値は出力しない）
-  const envKeys = Object.keys(env).sort();
-  const gscDebug = {
-    envKeys,
-    hasGscEmail: "GSC_CLIENT_EMAIL" in env,
-    hasGscKey: "GSC_PRIVATE_KEY" in env,
-    hasGscUrl: "GSC_SITE_URL" in env,
-    gscEmailType: typeof env.GSC_CLIENT_EMAIL,
-    gscKeyType: typeof env.GSC_PRIVATE_KEY,
-    gscUrlType: typeof env.GSC_SITE_URL,
-  };
-
   // 環境変数チェック
   if (!env.GSC_CLIENT_EMAIL || !env.GSC_PRIVATE_KEY || !env.GSC_SITE_URL) {
     return Response.json(
       {
         ok: false,
         error: "GSC_CLIENT_EMAIL, GSC_PRIVATE_KEY, GSC_SITE_URL が未設定です",
-        debug: gscDebug,
       },
       { status: 500 }
     );
