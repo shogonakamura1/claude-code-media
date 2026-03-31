@@ -3,6 +3,7 @@ import { articles } from "@/lib/db/schema";
 import type { ArticleStatus } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
+import { summarizeArticle } from "@/lib/gemini";
 
 export const runtime = "edge";
 
@@ -35,11 +36,11 @@ export async function PATCH(
       );
     }
 
-    const env = getRequestContext().env as { DB: D1Database };
+    const env = getRequestContext().env as { DB: D1Database; GEMINI_API_KEY?: string };
     const db = getDb({ DB: env.DB, ADMIN_PASSWORD_HASH: "" });
 
     const existing = await db
-      .select({ id: articles.id })
+      .select()
       .from(articles)
       .where(eq(articles.id, id))
       .limit(1);
@@ -51,6 +52,7 @@ export async function PATCH(
       );
     }
 
+    const article = existing[0];
     const updates: Record<string, unknown> = {
       updatedAt: sql`(datetime('now'))`,
     };
@@ -59,6 +61,46 @@ export async function PATCH(
       updates.status = body.status;
       if (body.status === "PUBLISHED") {
         updates.publishedAt = sql`(datetime('now'))`;
+
+        // 未要約の記事を公開する場合、Gemini要約を実行
+        if (!article.aiSummary && article.originalUrl) {
+          try {
+            const geminiData = await summarizeArticle(
+              article.title,
+              article.aiSummary ?? "",
+              article.originalUrl,
+              env.GEMINI_API_KEY
+            );
+
+            if (geminiData) {
+              updates.aiSummary = geminiData.summary;
+              updates.aiDetailedSummary = geminiData.detailedSummary;
+              updates.difficulty = geminiData.difficulty;
+              updates.contentType = geminiData.contentType;
+              updates.readingTimeMin = geminiData.readingTimeMin;
+              updates.language = geminiData.language;
+
+              // 日本語以外の記事はタイトルを翻訳
+              if (geminiData.language !== "ja" && geminiData.titleJa) {
+                updates.originalTitle = article.title;
+                updates.title = geminiData.titleJa;
+              }
+
+              // categoryIdマッピング
+              const categoryMap: Record<string, string> = {
+                news: "cat_news",
+                tips: "cat_tips",
+                tutorial: "cat_tutorial",
+                "case-study": "cat_case",
+              };
+              if (geminiData.contentType && categoryMap[geminiData.contentType]) {
+                updates.categoryId = categoryMap[geminiData.contentType];
+              }
+            }
+          } catch {
+            // 要約失敗でも公開は続行
+          }
+        }
       }
     }
     if (body.title !== undefined) updates.title = body.title;
