@@ -4,7 +4,8 @@ on:
   schedule:
     # 毎日 UTC 21:00 (JST 6:00) - 朝にレポートが届くように
     - cron: '0 21 * * *'
-  workflow_dispatch: # 手動実行も可能
+  workflow_dispatch:
+    # 手動実行も可能
 
 jobs:
   seo-collect-and-suggest:
