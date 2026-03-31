@@ -1,0 +1,214 @@
+name: Daily SEO Optimization
+
+on:
+  schedule:
+    # 毎日 UTC 21:00 (JST 6:00) - 朝にレポートが届くように
+    - cron: '0 21 * * *'
+  workflow_dispatch: # 手動実行も可能
+
+jobs:
+  seo-collect-and-suggest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect Search Console data
+        id: collect
+        run: |
+          response=$(curl -s -L -w "\n%{http_code}" --max-time 120 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/seo/collect") || true
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "HTTP Status: $http_code"
+          echo "Body: $body"
+
+          echo "http_code=$http_code" >> "$GITHUB_OUTPUT"
+          echo "body=$body" >> "$GITHUB_OUTPUT"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::SEO collect failed with status $http_code"
+            echo "collect_ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "collect_ok=true" >> "$GITHUB_OUTPUT"
+
+            # JSONからフィールド抽出
+            fetched=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('fetched',0))" 2>/dev/null || echo "0")
+            saved=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('saved',0))" 2>/dev/null || echo "0")
+            period_start=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['period']['start'])" 2>/dev/null || echo "N/A")
+            period_end=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['period']['end'])" 2>/dev/null || echo "N/A")
+
+            echo "fetched=$fetched" >> "$GITHUB_OUTPUT"
+            echo "saved=$saved" >> "$GITHUB_OUTPUT"
+            echo "period_start=$period_start" >> "$GITHUB_OUTPUT"
+            echo "period_end=$period_end" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate AI improvement suggestions
+        id: suggest
+        if: steps.collect.outputs.collect_ok == 'true'
+        run: |
+          response=$(curl -s -L -w "\n%{http_code}" --max-time 120 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/seo/suggest") || true
+
+          http_code=$(echo "$response" | tail -1)
+          body=$(echo "$response" | head -n -1)
+
+          echo "HTTP Status: $http_code"
+          echo "Body: $body"
+
+          echo "http_code=$http_code" >> "$GITHUB_OUTPUT"
+          echo "body=$body" >> "$GITHUB_OUTPUT"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::warning::SEO suggest failed with status $http_code"
+            echo "suggest_ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "suggest_ok=true" >> "$GITHUB_OUTPUT"
+
+            analyzed=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('analyzed',0))" 2>/dev/null || echo "0")
+            issues=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('issuesDetected',0))" 2>/dev/null || echo "0")
+            suggestions=$(echo "$body" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('suggestionsGenerated',0))" 2>/dev/null || echo "0")
+
+            echo "analyzed=$analyzed" >> "$GITHUB_OUTPUT"
+            echo "issues=$issues" >> "$GITHUB_OUTPUT"
+            echo "suggestions=$suggestions" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch metrics summary
+        id: metrics
+        if: steps.collect.outputs.collect_ok == 'true'
+        run: |
+          response=$(curl -s -L --max-time 60 \
+            "${{ secrets.SITE_URL }}/api/seo/metrics?days=7") || true
+
+          echo "metrics_body=$response" >> "$GITHUB_OUTPUT"
+
+          total_clicks=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['summary']['totalClicks'])" 2>/dev/null || echo "N/A")
+          total_impressions=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['summary']['totalImpressions'])" 2>/dev/null || echo "N/A")
+          avg_ctr=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d['summary']['avgCtr']*100, 2))" 2>/dev/null || echo "N/A")
+          avg_position=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(round(d['summary']['avgPosition'], 1))" 2>/dev/null || echo "N/A")
+          pending_count=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('improvements',[])))" 2>/dev/null || echo "0")
+
+          # Top 5 pages
+          top_pages=$(echo "$response" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+pages=d.get('pages',[])[:5]
+for p in pages:
+    slug=p['slug'][:50]
+    print(f\"<tr><td>{slug}</td><td>{p['clicks']}</td><td>{p['impressions']}</td><td>{round(p['ctr']*100,1)}%</td><td>{round(p['position'],1)}</td></tr>\")
+" 2>/dev/null || echo "")
+
+          echo "total_clicks=$total_clicks" >> "$GITHUB_OUTPUT"
+          echo "total_impressions=$total_impressions" >> "$GITHUB_OUTPUT"
+          echo "avg_ctr=$avg_ctr" >> "$GITHUB_OUTPUT"
+          echo "avg_position=$avg_position" >> "$GITHUB_OUTPUT"
+          echo "pending_count=$pending_count" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "top_pages<<TOP_PAGES_EOF"
+            echo "$top_pages"
+            echo "TOP_PAGES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send email report
+        if: always()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "[ClaudeNote] SEO日次レポート (${{ steps.metrics.outputs.total_clicks || 'N/A' }} clicks)"
+          html_body: |
+            <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #333;">
+              <h2 style="color: #1a1a1a; border-bottom: 2px solid #6366f1; padding-bottom: 8px;">
+                ClaudeNote SEO 日次レポート
+              </h2>
+
+              <p style="color: #666; font-size: 14px;">
+                実行日時: ${{ github.event.repository.updated_at || 'N/A' }} |
+                <a href="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}">GitHub Actions ログ</a>
+              </p>
+
+              <!-- データ収集結果 -->
+              <h3 style="color: #4f46e5;">1. Search Console データ収集</h3>
+              ${{ steps.collect.outputs.collect_ok == 'true' && format('<p style="color: #16a34a;">&#10003; 成功 — 期間: {0} 〜 {1} / 取得: {2}件 / 保存: {3}件</p>', steps.collect.outputs.period_start, steps.collect.outputs.period_end, steps.collect.outputs.fetched, steps.collect.outputs.saved) || '<p style="color: #dc2626;">&#10007; 失敗</p>' }}
+
+              <!-- AI分析結果 -->
+              <h3 style="color: #4f46e5;">2. AI改善提案</h3>
+              ${{ steps.suggest.outputs.suggest_ok == 'true' && format('<p style="color: #16a34a;">&#10003; 成功 — 分析: {0}件 / 問題検出: {1}件 / 提案生成: {2}件</p>', steps.suggest.outputs.analyzed, steps.suggest.outputs.issues, steps.suggest.outputs.suggestions) || '<p style="color: #999;">スキップまたは失敗</p>' }}
+
+              <!-- サマリー -->
+              <h3 style="color: #4f46e5;">3. 直近7日間のパフォーマンス</h3>
+              <table style="border-collapse: collapse; width: 100%; font-size: 14px;">
+                <tr style="background: #f3f4f6;">
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;"><strong>クリック数</strong></td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">${{ steps.metrics.outputs.total_clicks || 'N/A' }}</td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;"><strong>表示回数</strong></td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">${{ steps.metrics.outputs.total_impressions || 'N/A' }}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;"><strong>平均CTR</strong></td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">${{ steps.metrics.outputs.avg_ctr || 'N/A' }}%</td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;"><strong>平均順位</strong></td>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">${{ steps.metrics.outputs.avg_position || 'N/A' }}</td>
+                </tr>
+              </table>
+
+              <!-- Top 5 ページ -->
+              <h3 style="color: #4f46e5;">4. Top 5 ページ</h3>
+              <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+                <tr style="background: #f3f4f6;">
+                  <th style="padding: 6px; border: 1px solid #e5e7eb; text-align: left;">ページ</th>
+                  <th style="padding: 6px; border: 1px solid #e5e7eb;">クリック</th>
+                  <th style="padding: 6px; border: 1px solid #e5e7eb;">表示</th>
+                  <th style="padding: 6px; border: 1px solid #e5e7eb;">CTR</th>
+                  <th style="padding: 6px; border: 1px solid #e5e7eb;">順位</th>
+                </tr>
+                ${{ steps.metrics.outputs.top_pages || '<tr><td colspan="5" style="padding: 6px; text-align: center;">データなし</td></tr>' }}
+              </table>
+
+              <!-- アクション -->
+              <h3 style="color: #4f46e5;">5. 対応が必要な項目</h3>
+              <p>未対応のAI改善提案: <strong>${{ steps.metrics.outputs.pending_count || '0' }}件</strong></p>
+
+              <!-- リンク -->
+              <h3 style="color: #4f46e5;">6. 管理画面リンク</h3>
+              <table style="border-collapse: collapse; width: 100%; font-size: 14px;">
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                    <a href="${{ secrets.SITE_URL }}/admin/seo" style="color: #4f46e5; text-decoration: none; font-weight: bold;">
+                      SEOダッシュボード
+                    </a>
+                    <br><span style="color: #666; font-size: 12px;">パフォーマンス確認・改善提案の承認/却下</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                    <a href="${{ secrets.SITE_URL }}/admin/articles" style="color: #4f46e5; text-decoration: none; font-weight: bold;">
+                      記事管理
+                    </a>
+                    <br><span style="color: #666; font-size: 12px;">記事タイトル・コンテンツの編集</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px; border: 1px solid #e5e7eb;">
+                    <a href="${{ secrets.SITE_URL }}/admin" style="color: #4f46e5; text-decoration: none; font-weight: bold;">
+                      管理ダッシュボード
+                    </a>
+                    <br><span style="color: #666; font-size: 12px;">サイト全体の管理</span>
+                  </td>
+                </tr>
+              </table>
+
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+              <p style="color: #999; font-size: 12px;">
+                このメールはGitHub Actionsから自動送信されています。
+                <a href="https://github.com/${{ github.repository }}/actions/workflows/scheduled-seo.yml">ワークフロー設定</a>
+              </p>
+            </div>
+          to: ${{ secrets.NOTIFY_EMAIL }}
+          from: "ClaudeNote SEO Monitor"
