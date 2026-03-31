@@ -104,17 +104,22 @@ jobs:
       - name: Extract report
         id: report
         shell: bash
+        env:
+          CLAUDE_RESULT: ${{ steps.claude.outputs.result }}
         run: |
-          CLAUDE_OUTPUT=$(cat <<'CLAUDE_EOF'
-          ${{ steps.claude.outputs.result }}
-          CLAUDE_EOF
-          )
+          # Claude出力からレポートを抽出
+          REPORT=""
+          if [ -n "$CLAUDE_RESULT" ]; then
+            REPORT=$(echo "$CLAUDE_RESULT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+          fi
 
-          # レポート部分を抽出
-          REPORT=$(echo "$CLAUDE_OUTPUT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
-
+          # レポートが空の場合はClaude出力全体を使用（最大500文字）
           if [ -z "$REPORT" ]; then
-            REPORT="Claude分析は完了しましたが、構造化レポートを抽出できませんでした。GitHub Actionsログを確認してください。"
+            if [ -n "$CLAUDE_RESULT" ]; then
+              REPORT=$(echo "$CLAUDE_RESULT" | head -c 500)
+            else
+              REPORT="Claude分析の出力を取得できませんでした。GitHub Actionsログを確認してください。"
+            fi
           fi
 
           {
