@@ -4,7 +4,8 @@ on:
   schedule:
     # 毎日 UTC 21:00 (JST 6:00) - 朝にレポートが届くように
     - cron: '0 21 * * *'
-  workflow_dispatch: # 手動実行も可能
+  workflow_dispatch:
+    # 手動実行も可能
 
 jobs:
   seo-collect-and-suggest:
@@ -92,14 +93,7 @@ jobs:
           pending_count=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('improvements',[])))" 2>/dev/null || echo "0")
 
           # Top 5 pages
-          top_pages=$(echo "$response" | python3 -c "
-import sys,json
-d=json.load(sys.stdin)
-pages=d.get('pages',[])[:5]
-for p in pages:
-    slug=p['slug'][:50]
-    print(f\"<tr><td>{slug}</td><td>{p['clicks']}</td><td>{p['impressions']}</td><td>{round(p['ctr']*100,1)}%</td><td>{round(p['position'],1)}</td></tr>\")
-" 2>/dev/null || echo "")
+          top_pages=$(echo "$response" | python3 -c "import sys,json; d=json.load(sys.stdin); pages=d.get('pages',[])[:5]; [print(f'<tr><td>{p[\"slug\"][:50]}</td><td>{p[\"clicks\"]}</td><td>{p[\"impressions\"]}</td><td>{round(p[\"ctr\"]*100,1)}%</td><td>{round(p[\"position\"],1)}</td></tr>') for p in pages]" 2>/dev/null || echo "")
 
           echo "total_clicks=$total_clicks" >> "$GITHUB_OUTPUT"
           echo "total_impressions=$total_impressions" >> "$GITHUB_OUTPUT"

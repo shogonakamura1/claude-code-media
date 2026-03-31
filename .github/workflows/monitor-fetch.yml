@@ -10,6 +10,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: read
+  id-token: write
 
 jobs:
   analyze-and-fix:
@@ -50,7 +51,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          direct_prompt: |
+          show_full_output: true
+          prompt: |
             ## タスク: scheduled-fetch ワークフロー失敗の自動分析・修正
 
             ### 失敗ログ
@@ -103,19 +105,28 @@ jobs:
       - name: Extract report
         id: report
         shell: bash
+        env:
+          CLAUDE_RESULT: ${{ steps.claude.outputs.result }}
         run: |
-          CLAUDE_OUTPUT=$(cat <<'CLAUDE_EOF'
-          ${{ steps.claude.outputs.result }}
-          CLAUDE_EOF
-          )
-
-          # レポート部分を抽出
-          REPORT=$(echo "$CLAUDE_OUTPUT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
-
-          if [ -z "$REPORT" ]; then
-            REPORT="Claude分析は完了しましたが、構造化レポートを抽出できませんでした。GitHub Actionsログを確認してください。"
+          REPORT=""
+          if [ -n "$CLAUDE_RESULT" ]; then
+            DECODED=$(printf '%b' "$CLAUDE_RESULT")
+            REPORT=$(echo "$DECODED" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+            if [ -z "$REPORT" ]; then
+              REPORT=$(echo "$DECODED" | head -c 1000)
+            fi
           fi
-
+          if [ -z "$REPORT" ] && [ -f /home/runner/work/_temp/claude-execution-output.json ]; then
+            RAW=$(tail -c 2000 /home/runner/work/_temp/claude-execution-output.json 2>/dev/null) || true
+            DECODED=$(printf '%b' "$RAW")
+            REPORT=$(echo "$DECODED" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+            if [ -z "$REPORT" ]; then
+              REPORT=$(echo "$DECODED" | tail -20)
+            fi
+          fi
+          if [ -z "$REPORT" ]; then
+            REPORT="Claude分析の出力を取得できませんでした。GitHub Actionsログを確認してください。"
+          fi
           {
             echo "report<<REPORT_EOF"
             echo "$REPORT"

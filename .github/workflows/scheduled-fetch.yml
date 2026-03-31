@@ -18,8 +18,9 @@ jobs:
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "=== Attempt $attempt / $MAX_RETRIES ==="
 
-            response=$(curl -s -L -w "\n%{http_code}" --max-time 180 -X POST \
-              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            # TEST: 意図的に失敗させてmonitor-fetchをテスト（後で戻す）
+            response=$(curl -s -L -w "\n%{http_code}" --max-time 10 -X POST \
+              -H "Authorization: Bearer wrong_token_for_test" \
               "${{ secrets.SITE_URL }}/api/cron") || true
 
             http_code=$(echo "$response" | tail -1)
