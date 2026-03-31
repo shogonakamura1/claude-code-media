@@ -18,9 +18,9 @@ jobs:
           for attempt in $(seq 1 $MAX_RETRIES); do
             echo "=== Attempt $attempt / $MAX_RETRIES ==="
 
-            response=$(curl -s -L -w "\n%{http_code}" --max-time 120 -X POST \
+            response=$(curl -s -L -w "\n%{http_code}" --max-time 180 -X POST \
               -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-              "${{ secrets.SITE_URL }}/api/cron")
+              "${{ secrets.SITE_URL }}/api/cron") || true
 
             http_code=$(echo "$response" | tail -1)
             body=$(echo "$response" | head -n -1)
