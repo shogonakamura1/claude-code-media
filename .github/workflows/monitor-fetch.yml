@@ -108,48 +108,22 @@ jobs:
         env:
           CLAUDE_RESULT: ${{ steps.claude.outputs.result }}
         run: |
-          # Claude出力からレポートを抽出
           REPORT=""
-
-          # 1. steps.claude.outputs.result から抽出
           if [ -n "$CLAUDE_RESULT" ]; then
             REPORT=$(echo "$CLAUDE_RESULT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
             if [ -z "$REPORT" ]; then
               REPORT=$(echo "$CLAUDE_RESULT" | head -c 1000)
             fi
           fi
-
-          # 2. 出力JSONファイルからフォールバック抽出
           if [ -z "$REPORT" ] && [ -f /home/runner/work/_temp/claude-execution-output.json ]; then
-            REPORT=$(cat /home/runner/work/_temp/claude-execution-output.json | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-for msg in reversed(data) if isinstance(data, list) else [data]:
-    if isinstance(msg, dict):
-        content = msg.get('content', '') or msg.get('result', '') or msg.get('text', '')
-        if isinstance(content, list):
-            for c in content:
-                if isinstance(c, dict) and c.get('type') == 'text':
-                    text = c.get('text', '')
-                    if 'FETCH_MONITOR_REPORT' in text:
-                        start = text.find('=== FETCH_MONITOR_REPORT ===')
-                        end = text.find('=== END_REPORT ===')
-                        if start >= 0 and end >= 0:
-                            print(text[start:end + len('=== END_REPORT ===')])
-                            sys.exit(0)
-                    elif len(text) > 50:
-                        print(text[:1000])
-                        sys.exit(0)
-        elif isinstance(content, str) and len(content) > 50:
-            print(content[:1000])
-            sys.exit(0)
-" 2>/dev/null) || true
+            REPORT=$(grep -oP '(?<=FETCH_MONITOR_REPORT ===).*?(?==== END_REPORT ===)' /home/runner/work/_temp/claude-execution-output.json 2>/dev/null | head -1) || true
+            if [ -z "$REPORT" ]; then
+              REPORT=$(tail -c 1000 /home/runner/work/_temp/claude-execution-output.json 2>/dev/null) || true
+            fi
           fi
-
           if [ -z "$REPORT" ]; then
             REPORT="Claude分析の出力を取得できませんでした。GitHub Actionsログを確認してください。"
           fi
-
           {
             echo "report<<REPORT_EOF"
             echo "$REPORT"
