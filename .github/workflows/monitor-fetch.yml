@@ -51,6 +51,7 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
           prompt: |
             ## タスク: scheduled-fetch ワークフロー失敗の自動分析・修正
 
@@ -109,17 +110,44 @@ jobs:
         run: |
           # Claude出力からレポートを抽出
           REPORT=""
+
+          # 1. steps.claude.outputs.result から抽出
           if [ -n "$CLAUDE_RESULT" ]; then
             REPORT=$(echo "$CLAUDE_RESULT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+            if [ -z "$REPORT" ]; then
+              REPORT=$(echo "$CLAUDE_RESULT" | head -c 1000)
+            fi
           fi
 
-          # レポートが空の場合はClaude出力全体を使用（最大500文字）
+          # 2. 出力JSONファイルからフォールバック抽出
+          if [ -z "$REPORT" ] && [ -f /home/runner/work/_temp/claude-execution-output.json ]; then
+            REPORT=$(cat /home/runner/work/_temp/claude-execution-output.json | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for msg in reversed(data) if isinstance(data, list) else [data]:
+    if isinstance(msg, dict):
+        content = msg.get('content', '') or msg.get('result', '') or msg.get('text', '')
+        if isinstance(content, list):
+            for c in content:
+                if isinstance(c, dict) and c.get('type') == 'text':
+                    text = c.get('text', '')
+                    if 'FETCH_MONITOR_REPORT' in text:
+                        start = text.find('=== FETCH_MONITOR_REPORT ===')
+                        end = text.find('=== END_REPORT ===')
+                        if start >= 0 and end >= 0:
+                            print(text[start:end + len('=== END_REPORT ===')])
+                            sys.exit(0)
+                    elif len(text) > 50:
+                        print(text[:1000])
+                        sys.exit(0)
+        elif isinstance(content, str) and len(content) > 50:
+            print(content[:1000])
+            sys.exit(0)
+" 2>/dev/null) || true
+          fi
+
           if [ -z "$REPORT" ]; then
-            if [ -n "$CLAUDE_RESULT" ]; then
-              REPORT=$(echo "$CLAUDE_RESULT" | head -c 500)
-            else
-              REPORT="Claude分析の出力を取得できませんでした。GitHub Actionsログを確認してください。"
-            fi
+            REPORT="Claude分析の出力を取得できませんでした。GitHub Actionsログを確認してください。"
           fi
 
           {
