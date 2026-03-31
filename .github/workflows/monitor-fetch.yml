@@ -110,15 +110,18 @@ jobs:
         run: |
           REPORT=""
           if [ -n "$CLAUDE_RESULT" ]; then
-            REPORT=$(echo "$CLAUDE_RESULT" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
+            DECODED=$(printf '%b' "$CLAUDE_RESULT")
+            REPORT=$(echo "$DECODED" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
             if [ -z "$REPORT" ]; then
-              REPORT=$(echo "$CLAUDE_RESULT" | head -c 1000)
+              REPORT=$(echo "$DECODED" | head -c 1000)
             fi
           fi
           if [ -z "$REPORT" ] && [ -f /home/runner/work/_temp/claude-execution-output.json ]; then
-            REPORT=$(grep -oP '(?<=FETCH_MONITOR_REPORT ===).*?(?==== END_REPORT ===)' /home/runner/work/_temp/claude-execution-output.json 2>/dev/null | head -1) || true
+            RAW=$(tail -c 2000 /home/runner/work/_temp/claude-execution-output.json 2>/dev/null) || true
+            DECODED=$(printf '%b' "$RAW")
+            REPORT=$(echo "$DECODED" | sed -n '/=== FETCH_MONITOR_REPORT ===/,/=== END_REPORT ===/p')
             if [ -z "$REPORT" ]; then
-              REPORT=$(tail -c 1000 /home/runner/work/_temp/claude-execution-output.json 2>/dev/null) || true
+              REPORT=$(echo "$DECODED" | tail -20)
             fi
           fi
           if [ -z "$REPORT" ]; then
