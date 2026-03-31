@@ -101,24 +101,28 @@ export async function POST(request: Request) {
               continue;
             }
 
-            // Gemini要約
+            const id = generateId();
+            const articleStatus = determineStatus(item.score);
+
+            // コスト削減: 自動公開される記事のみGemini要約を実行
             let geminiData: GeminiSummaryResult | null = null;
 
-            try {
-              geminiData = await summarizeArticle(
-                item.title,
-                item.description,
-                item.url,
-                envVars.GEMINI_API_KEY
-              );
-              summarized++;
-            } catch (geminiErr) {
-              errors.push(
-                `Gemini error for "${item.title}": ${geminiErr instanceof Error ? geminiErr.message : String(geminiErr)}`
-              );
+            if (articleStatus === "PUBLISHED") {
+              try {
+                geminiData = await summarizeArticle(
+                  item.title,
+                  item.description,
+                  item.url,
+                  envVars.GEMINI_API_KEY
+                );
+                summarized++;
+              } catch (geminiErr) {
+                errors.push(
+                  `Gemini error for "${item.title}": ${geminiErr instanceof Error ? geminiErr.message : String(geminiErr)}`
+                );
+              }
             }
 
-            const id = generateId();
             const isNonJapanese = geminiData?.language !== "ja";
 
             // 日本語以外の記事: title = titleJa, originalTitle = 原文
@@ -134,8 +138,6 @@ export async function POST(request: Request) {
             const categoryId = geminiData?.contentType
               ? CONTENT_TYPE_TO_CATEGORY[geminiData.contentType] ?? null
               : null;
-
-            const articleStatus = determineStatus(item.score);
 
             await db.insert(articles).values({
               id,
