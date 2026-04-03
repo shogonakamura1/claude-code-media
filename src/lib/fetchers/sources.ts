@@ -80,14 +80,15 @@ export const SOURCES: Source[] = [
     label: "Qiita",
     authorType: "community",
   },
-  {
-    id: "devto",
-    url: "https://dev.to/feed/tag/claudecode",
-    type: "rss",
-    priority: "low",
-    label: "dev.to",
-    authorType: "community",
-  },
+  // dev.to: SEO貢献度ゼロ（過去90日間0クリック/0表示）のため無効化。コスト削減。
+  // {
+  //   id: "devto",
+  //   url: "https://dev.to/feed/tag/claudecode",
+  //   type: "rss",
+  //   priority: "low",
+  //   label: "dev.to",
+  //   authorType: "community",
+  // },
   {
     id: "hn",
     url: "https://hn.algolia.com/api/v1/search?query=claude+code+anthropic&tags=story&hitsPerPage=20",
