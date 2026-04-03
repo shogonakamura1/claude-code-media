@@ -63,6 +63,20 @@ export async function PATCH(request: Request) {
     if (body.action === "apply") {
       // 実際に記事に反映する
       if (imp.type === "title" && imp.suggestedValue) {
+        // 対象記事が存在するか確認
+        const [targetArticle] = await db
+          .select({ id: articles.id, title: articles.title })
+          .from(articles)
+          .where(eq(articles.id, imp.articleId))
+          .limit(1);
+
+        if (!targetArticle) {
+          return Response.json(
+            { ok: false, error: `記事が見つかりません: ${imp.articleId}` },
+            { status: 404 }
+          );
+        }
+
         await db
           .update(articles)
           .set({
@@ -70,6 +84,20 @@ export async function PATCH(request: Request) {
             updatedAt: new Date().toISOString(),
           })
           .where(eq(articles.id, imp.articleId));
+
+        // 適用後に検証
+        const [updated] = await db
+          .select({ title: articles.title })
+          .from(articles)
+          .where(eq(articles.id, imp.articleId))
+          .limit(1);
+
+        if (!updated || updated.title !== imp.suggestedValue) {
+          return Response.json(
+            { ok: false, error: "タイトルの更新に失敗しました" },
+            { status: 500 }
+          );
+        }
       }
 
       await db

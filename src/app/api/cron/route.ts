@@ -1,7 +1,7 @@
 import { fetchAll } from "@/lib/fetchers";
 import { AUTO_PUBLISH_MIN } from "@/lib/fetchers/scorer";
-import { summarizeArticle, sleep } from "@/lib/gemini";
-import type { GeminiSummaryResult } from "@/lib/gemini";
+import { summarizeArticleSimple, sleep } from "@/lib/gemini";
+import type { SimpleSummaryResult } from "@/lib/gemini";
 import { getDb } from "@/lib/db";
 import { articles } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -104,12 +104,12 @@ export async function POST(request: Request) {
             const id = generateId();
             const articleStatus = determineStatus(item.score);
 
-            // コスト削減: 自動公開される記事のみGemini要約を実行
-            let geminiData: GeminiSummaryResult | null = null;
+            // コスト削減: 簡潔要約のみ生成（詳細要約は記事ページ初回アクセス時にオンデマンド生成）
+            let geminiData: SimpleSummaryResult | null = null;
 
             if (articleStatus === "PUBLISHED") {
               try {
-                geminiData = await summarizeArticle(
+                geminiData = await summarizeArticleSimple(
                   item.title,
                   item.description,
                   item.url,
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
               status: articleStatus,
               score: item.score,
               aiSummary: geminiData?.summary ?? null,
-              aiDetailedSummary: geminiData?.detailedSummary ?? null,
+              aiDetailedSummary: null, // オンデマンド生成（記事詳細ページ初回アクセス時）
               difficulty: geminiData?.difficulty ?? null,
               contentType: geminiData?.contentType ?? null,
               readingTimeMin: geminiData?.readingTimeMin ?? null,

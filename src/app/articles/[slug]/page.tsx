@@ -9,6 +9,7 @@ import { getRequestContext } from "@cloudflare/next-on-pages";
 import { ArrowLeft, ExternalLink, Clock, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { DisplayAd } from "@/components/AdUnit";
+import { LazySummary } from "@/components/LazySummary";
 import { getDb } from "@/lib/db";
 import { articles, categories } from "@/lib/db/schema";
 import type { Article, Category } from "@/lib/db/schema";
@@ -221,16 +222,21 @@ export default async function ArticleDetailPage({ params }: PageProps) {
         </div>
       </header>
 
-      {/* AI詳細解説 */}
-      {(article.aiDetailedSummary || article.aiSummary) && (
+      {/* AI詳細解説（詳細要約がない場合はオンデマンド生成） */}
+      {article.aiDetailedSummary ? (
         <section className="rounded-lg border border-border bg-muted/30 p-6">
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
             AI解説
           </h2>
           <div className="whitespace-pre-line leading-relaxed">
-            {article.aiDetailedSummary ?? article.aiSummary}
+            {article.aiDetailedSummary}
           </div>
         </section>
+      ) : (
+        <LazySummary
+          articleId={article.id}
+          fallbackSummary={article.aiSummary}
+        />
       )}
 
       {/* 管理者コメント */}
